@@ -1,4 +1,10 @@
 import allChords from "./chords.js";
+
+window.onerror = (a, b, c, d, e) => {
+  alert(`message: ${a}`+`, source: ${b}`+`, lineno: ${c}`+`, colno: ${d}`+`, error: ${e}`);
+
+  return true;
+};
 var chordsDict = {};
 allChords.forEach((chord) => {
   chord.abbv.forEach((a) => {
@@ -163,7 +169,7 @@ function loadPatches() {
     patchList.appendChild(option);
   }
 }
-
+var wait = t=>new Promise(r=>setTimeout(r,t));
 async function load() {
   try {
     await loadSynth();
@@ -172,11 +178,25 @@ async function load() {
     loaded = true;
     loadSavedItem();
     reloadList();
+    //console.log((a,b)=>obxd.onMidi([0xB0, a, b]))
   } catch (e) {
     alert(e);
   }
 }
 
+function controlChange(){
+  var param = document.getElementById("param").value;
+  var value = document.getElementById("paramVal").value;
+  obxd.onMidi([0xB0, param, value])
+}
+function nextPatch(){
+  var x = parseInt(document.getElementById("patches").value);
+  obxd.selectPatch(x+1);
+  document.getElementById("patches").value = x+1;
+}
+document.getElementById("param").addEventListener("change", controlChange, false);
+document.getElementById("paramVal").addEventListener("change", controlChange, false);
+document.getElementById("npatch").addEventListener("click", nextPatch, false);
 document.getElementById("load").addEventListener("click", start, false);
 Pressure.set("#prev", {
   start: function (event) {

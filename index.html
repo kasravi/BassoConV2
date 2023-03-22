@@ -34,7 +34,6 @@
   </head>
 
   <body>
-
     <div
       style="
         width: 100vw;
@@ -59,7 +58,13 @@
           style="width: 50%"
           placeholder="name..."
         />
-        <button class="btn btn-primary m-1" style="height:3rem" id="name-button">Save</button>
+        <button
+          class="btn btn-primary m-1"
+          style="height: 3rem"
+          id="name-button"
+        >
+          Save
+        </button>
       </div>
       <div id="chords-container">
         <textarea
@@ -74,11 +79,27 @@
       <div class="seperator"></div>
       <div>
         <div class="d-flex">
-        <input class="form-control m-1" type="number" min="-12" max="12" value="0" style="width:30%;" id="transpose" />
-        <label for="transpose" class="control-label mr-1">Transpose</label>
-        <input class="form-control m-1" type="number" min="-3" max="3" value="0" style="width:30%;" id="octave" />
-        <label for="octave" class="control-label">Octave</label>
-      </div>
+          <input
+            class="form-control m-1"
+            type="number"
+            min="-12"
+            max="12"
+            value="0"
+            style="width: 30%"
+            id="transpose"
+          />
+          <label for="transpose" class="control-label mr-1">Transpose</label>
+          <input
+            class="form-control m-1"
+            type="number"
+            min="-3"
+            max="3"
+            value="0"
+            style="width: 30%"
+            id="octave"
+          />
+          <label for="octave" class="control-label">Octave</label>
+        </div>
         <select class="form-select" style="margin-top: 1rem" id="banks">
           <option value="factory.fxb">factory</option>
           <option value="Designer/Breeze_Meat-n-Potatoes_Obxd-Bank.fxb">
@@ -115,34 +136,62 @@
           style="margin-top: 1rem"
           id="patches"
         ></select>
-
+        <div>
+          <input
+            type="number"
+            class="form-control mt-4"
+            min="0"
+            max="256"
+            value="0"
+            style="width: 30%"
+            id="param"
+          />
+          <label for="param" class="control-label mr-1">Param Key</label>
+          <input
+            type="number"
+            class="form-control"
+            min="0"
+            max="127"
+            value="0"
+            style="width: 30%"
+            id="paramVal"
+          />
+          <label for="paramVal" class="control-label mr-1">Param Value</label>
+          <button
+            class="btn btn-primary"
+            style="margin-top: 1rem; width: 20%"
+            id="npatch"
+          >
+            Next Patch
+          </button>
+        </div>
         <button
           class="btn btn-primary"
           style="margin-top: 1rem; width: 20%"
           id="prev"
         >
-        <i class="bi bi-arrow-left"></i>
+          <i class="bi bi-arrow-left"></i>
         </button>
         <button
           class="btn btn-primary"
           style="margin-top: 1rem; width: 20%"
           id="cur"
         >
-        <i class="bi bi-record-circle"></i>
+          <i class="bi bi-record-circle"></i>
         </button>
         <button
           class="btn btn-primary"
           style="margin-top: 1rem; width: 20%"
           id="next"
         >
-        <i class="bi bi-arrow-right"></i>
+          <i class="bi bi-arrow-right"></i>
         </button>
         <button
           class="btn btn-primary"
           style="margin-top: 1rem; width: 20%"
           id="reset"
         >
-        <i class="bi bi-chevron-bar-left"></i>
+          <i class="bi bi-chevron-bar-left"></i>
         </button>
       </div>
     </div>
