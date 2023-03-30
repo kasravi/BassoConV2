@@ -113,7 +113,7 @@ function changeForce(force) {
   }
   var notes = getCurrentChordNotes();
   notes.forEach((n) => {
-    send([0xa0, n, , Math.round(force * 127)]);
+    send([0xa0, n, Math.round(force * 127)]);
   });
 }
 
@@ -312,14 +312,8 @@ function reloadList() {
   });
 }
 
-var sendMidiChanged = () => {
-  
-  if (document.getElementById("send-midi").checked) {
-    document.getElementById("internal-synth").style.display = 'none';
-    
-    navigator.requestMIDIAccess().then(function(midiAccess) {
-      // Get the first available MIDI output
-      var outputs = midiAccess.outputs.values();
+var connectMidi = (midiAccess)=>{
+  var outputs = midiAccess.outputs.values();
       var output = outputs.next().value;
     
       // Check if an output is available
@@ -330,16 +324,24 @@ var sendMidiChanged = () => {
         return;
       }
     
-      send = (message) => output.send(message);
-      access.onstatechange = (event) => {
-        // Print information about the (dis)connected MIDI controller
-        console.log(event.port.name, event.port.manufacturer, event.port.state);
+      send = (message) => {output.send(message)};
+}
+var sendMidiChanged = () => {
+  
+  if (document.getElementById("send-midi").checked) {
+    document.getElementById("internal-synth").style.display = 'none';
+    
+    navigator.requestMIDIAccess().then(function(midiAccess) {
+      // Get the first available MIDI output
+      connectMidi(midiAccess);
+      midiAccess.onstatechange = (event) => {
+        connectMidi(midiAccess);
       };
     });
     
   } else {
     document.getElementById("internal-synth").style.display = 'block';
-    send = (message) => obxd.onMidi(message);
+    send = (message) => {obxd.onMidi(message)};
   }
 }
 document.getElementById("send-midi").addEventListener("change", sendMidiChanged, false);
@@ -436,6 +438,7 @@ function updateViews() {
 }
 
 updateViews();
+sendMidiChanged();
 
 mc.on("swipeleft swiperight", function (ev) {
   var s = ev.type === "swipeleft" ? -1 : 1;
