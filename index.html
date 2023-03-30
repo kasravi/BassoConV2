@@ -100,70 +100,84 @@
           />
           <label for="octave" class="control-label">Octave</label>
         </div>
-        <select class="form-select" style="margin-top: 1rem" id="banks">
-          <option value="factory.fxb">factory</option>
-          <option value="Designer/Breeze_Meat-n-Potatoes_Obxd-Bank.fxb">
-            Breeze
-          </option>
-          <option value="Designer/FMR - OB-Xa Patch Book.fxb">FMR</option>
-          <option value="Designer/Kujashi-OBXD-Bank.fxb">Kujashi</option>
-          <option value="Designer/OBXD - KVR Community Bank - Part 1.fxb">
-            KVR Part 1
-          </option>
-          <option value="Designer/OBXD - KVR Community Bank - Part 2.fxb">
-            KVR Part 2
-          </option>
-          <option value="Category/OBXD KVR Bank - Bass.fxb">Bass</option>
-          <option value="Category/OBXD KVR Bank - Brass + Synths.fxb">
-            Brass + Synths
-          </option>
-          <option
-            value="Category/OBXD KVR Bank - Drums + Percussion + SFXs.fxb"
-          >
-            Drums + Percussion + SFXs
-          </option>
-          <option value="Category/OBXD KVR Bank - Keys + Bells + Plucked.fxb">
-            Keys + Bells + Plucked
-          </option>
-          <option value="Category/OBXD KVR Bank - Leads.fxb">Leads</option>
-          <option value="Category/OBXD KVR Bank - Pads + Strings + Vocalic.fxb">
-            Pads + Strings + Vocalic
-          </option>
-          <option value="Category/Unbenannt.fxb"></option>
-        </select>
-        <select
-          class="form-select"
-          style="margin-top: 1rem"
-          id="patches"
-        ></select>
         <div>
           <input
-            type="number"
-            class="form-control mt-4"
-            min="0"
-            max="256"
+            style="margin-top: 1rem"
+            type="checkbox"
+            id="send-midi"
             value="0"
-            style="width: 30%"
-            id="param"
           />
-          <label for="param" class="control-label mr-1">Param Key</label>
-          <input
-            type="number"
-            class="form-control"
-            min="0"
-            max="127"
-            value="0"
-            style="width: 30%"
-            id="paramVal"
-          />
-          <label for="paramVal" class="control-label mr-1">Param Value</label>
+          <label for="send-midi">Send MIDI</label>
+        </div>
+        <div id="internal-synth">
+          <select class="form-select" style="margin-top: 1rem" id="banks">
+            <option value="factory.fxb">factory</option>
+            <option value="Designer/Breeze_Meat-n-Potatoes_Obxd-Bank.fxb">
+              Breeze
+            </option>
+            <option value="Designer/FMR - OB-Xa Patch Book.fxb">FMR</option>
+            <option value="Designer/Kujashi-OBXD-Bank.fxb">Kujashi</option>
+            <option value="Designer/OBXD - KVR Community Bank - Part 1.fxb">
+              KVR Part 1
+            </option>
+            <option value="Designer/OBXD - KVR Community Bank - Part 2.fxb">
+              KVR Part 2
+            </option>
+            <option value="Category/OBXD KVR Bank - Bass.fxb">Bass</option>
+            <option value="Category/OBXD KVR Bank - Brass + Synths.fxb">
+              Brass + Synths
+            </option>
+            <option
+              value="Category/OBXD KVR Bank - Drums + Percussion + SFXs.fxb"
+            >
+              Drums + Percussion + SFXs
+            </option>
+            <option value="Category/OBXD KVR Bank - Keys + Bells + Plucked.fxb">
+              Keys + Bells + Plucked
+            </option>
+            <option value="Category/OBXD KVR Bank - Leads.fxb">Leads</option>
+            <option
+              value="Category/OBXD KVR Bank - Pads + Strings + Vocalic.fxb"
+            >
+              Pads + Strings + Vocalic
+            </option>
+            <option value="Category/Unbenannt.fxb"></option>
+          </select>
+          <select
+            class="form-select"
+            style="margin-top: 1rem"
+            id="patches"
+          ></select>
           <button
-            class="btn btn-primary"
-            style="margin-top: 1rem; width: 20%"
-            id="npatch"
-          >
-            Next Patch
-          </button>
+              class="btn btn-primary"
+              style="margin-top: 1rem; width: 20%"
+              id="npatch"
+            >
+              Next Patch
+            </button>
+          <div>
+            <input
+              type="number"
+              class="form-control mt-4"
+              min="0"
+              max="256"
+              value="0"
+              style="width: 30%"
+              id="param"
+            />
+            <label for="param" class="control-label mr-1">Param Key</label>
+            <input
+              type="number"
+              class="form-control"
+              min="0"
+              max="127"
+              value="0"
+              style="width: 30%"
+              id="paramVal"
+            />
+            <label for="paramVal" class="control-label mr-1">Param Value</label>
+            
+          </div>
         </div>
         <button
           class="btn btn-primary"

@@ -12,7 +12,7 @@ allChords.forEach((chord) => {
   });
 });
 
-var sw, obxd;
+var sw, obxd, send = ()=>{};
 
 var num = 0;
 function parseChords() {
@@ -92,7 +92,7 @@ function playChord(force, i) {
   }
   var notes = getCurrentChordNotes(i);
   notes.forEach((n) => {
-    obxd.onMidi([0x90, n, Math.round(force * 127)]);
+    send([0x90, n, Math.round(force * 127)]);
   });
 }
 function stopChord(i, progress = true) {
@@ -101,7 +101,7 @@ function stopChord(i, progress = true) {
   }
   var notes = getCurrentChordNotes(i);
   notes.forEach((n) => {
-    obxd.onMidi([0x80, n, 0]);
+    send([0x80, n, 0]);
   });
   if (progress) {
     progressChord();
@@ -113,7 +113,7 @@ function changeForce(force) {
   }
   var notes = getCurrentChordNotes();
   notes.forEach((n) => {
-    obxd.onMidi([0xa0, n, , Math.round(force * 127)]);
+    send([0xa0, n, , Math.round(force * 127)]);
   });
 }
 
@@ -245,12 +245,14 @@ function save() {
   var chordsInp = document.getElementById("chords-input").value;
   var transpose = document.getElementById("transpose").value;
   var octave = document.getElementById("octave").value;
+  var sendMidi = document.getElementById("send-midi").checked;
   setStorage(name, {
     bank: bank,
     patch: patch,
     chords: chordsInp,
     transpose: transpose,
     octave: octave,
+    sendMidi: sendMidi
   });
 }
 function loadSavedItem(name) {
@@ -268,12 +270,14 @@ function loadSavedItem(name) {
     chords: chordsInp,
     transpose: transpose,
     octave: octave,
+    sendMidi: sendMidi
   } = getFromStorage(name);
   document.getElementById("name").value = name;
 
   document.getElementById("chords-input").value = chordsInp;
   document.getElementById("transpose").value = transpose;
   document.getElementById("octave").value = octave;
+  document.getElementById("send-midi").checked = sendMidi;
   showChord();
   document.getElementById("banks").value = bank;
   bankChange().then(() => {
@@ -307,6 +311,38 @@ function reloadList() {
     updateViews();
   });
 }
+
+var sendMidiChanged = () => {
+  
+  if (document.getElementById("send-midi").checked) {
+    document.getElementById("internal-synth").style.display = 'none';
+    
+    navigator.requestMIDIAccess().then(function(midiAccess) {
+      // Get the first available MIDI output
+      var outputs = midiAccess.outputs.values();
+      var output = outputs.next().value;
+    
+      // Check if an output is available
+      if (!output) {
+        alert("No MIDI output devices are available.");
+        document.getElementById("send-midi").checked = false;
+        sendMidiChanged();
+        return;
+      }
+    
+      send = (message) => output.send(message);
+      access.onstatechange = (event) => {
+        // Print information about the (dis)connected MIDI controller
+        console.log(event.port.name, event.port.manufacturer, event.port.state);
+      };
+    });
+    
+  } else {
+    document.getElementById("internal-synth").style.display = 'block';
+    send = (message) => obxd.onMidi(message);
+  }
+}
+document.getElementById("send-midi").addEventListener("change", sendMidiChanged, false);
 document.getElementById("reset").addEventListener("click", reset, false);
 document.getElementById("name-button").addEventListener("click", save, false);
 document.getElementById("banks").addEventListener("click", bankChange, false);
