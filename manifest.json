@@ -1,7 +1,8 @@
 {
     "name": "BossoCon",
     "short_name": "BossoCon",
-    "start_url": ".",
+    "description": "A Chord Player",
+    "start_url": "/",
     "display": "standalone",
     "icons": [
         {

@@ -1,5 +1,13 @@
 import allChords from "./chords.js";
 
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+        .then((reg) => console.log('Service worker registered.', reg))
+        .catch((err) => console.log('Service worker registration failed.', err));
+  });
+}
+
 // window.onerror = (a, b, c, d, e) => {
 //   //alert(`message: ${a}`+`, source: ${b}`+`, lineno: ${c}`+`, colno: ${d}`+`, error: ${e}`);
 
@@ -32,6 +40,9 @@ function getCurrentChordNotes(i) {
 }
 function showChord() {
   var chords = parseChords();
+  if(chords.length === 0){
+    return;
+  }
   var currentChord = chordsDict[chords[num]];
   document.getElementById("current-chord").innerHTML = currentChord.name;
   var dom = document.getElementById("chords");
@@ -194,9 +205,15 @@ function nextPatch(){
   obxd.selectPatch(x+1);
   document.getElementById("patches").value = x+1;
 }
+function prevPatch(){
+  var x = Math.max(parseInt(document.getElementById("patches").value)-1,0);
+  obxd.selectPatch(x);
+  document.getElementById("patches").value = x;
+}
 //document.getElementById("param").addEventListener("change", controlChange, false);
 //document.getElementById("paramVal").addEventListener("change", controlChange, false);
 document.getElementById("npatch").addEventListener("click", nextPatch, false);
+document.getElementById("ppatch").addEventListener("click", prevPatch, false);
 document.getElementById("load").addEventListener("click", start, false);
 Pressure.set("#prev", {
   start: function (event) {
@@ -246,14 +263,17 @@ function save() {
   var transpose = document.getElementById("transpose").value;
   var octave = document.getElementById("octave").value;
   var sendMidi = document.getElementById("send-midi").checked;
+  var progress = document.getElementById("progress-check").checked;
   setStorage(name, {
     bank: bank,
     patch: patch,
     chords: chordsInp,
     transpose: transpose,
     octave: octave,
-    sendMidi: sendMidi
+    sendMidi: sendMidi,
+    progress: progress
   });
+  reloadList()
 }
 function loadSavedItem(name) {
   if (!name) {
@@ -270,7 +290,8 @@ function loadSavedItem(name) {
     chords: chordsInp,
     transpose: transpose,
     octave: octave,
-    sendMidi: sendMidi
+    sendMidi: sendMidi,
+    progress: progress
   } = getFromStorage(name);
   document.getElementById("name").value = name;
 
@@ -278,6 +299,7 @@ function loadSavedItem(name) {
   document.getElementById("transpose").value = transpose;
   document.getElementById("octave").value = octave;
   document.getElementById("send-midi").checked = sendMidi;
+  document.getElementById("progress-check").checked = progress;
   showChord();
   document.getElementById("banks").value = bank;
   bankChange().then(() => {
@@ -293,23 +315,53 @@ function reloadList() {
   ul.className = "list-group";
   list.appendChild(ul);
   var keys = Object.keys(localStorage);
-  for (var i = 0; i < keys.length; i++) {
-    var name = keys[i];
-    var song = document.createElement("li");
+  for (let i = 0; i < keys.length; i++) {
+    let name = keys[i];
+    let song = document.createElement("li");
+    let {
+      bank: bank,
+      patch: patch,
+      chords: chordsInp,
+      transpose: transpose,
+      octave: octave,
+      sendMidi: sendMidi,
+      progress: progress
+    } = getFromStorage(name);
+    if(!(bank || patch || chordsInp || transpose || octave)){
+      continue;
+    }
     song.className = "list-group-item";
     if (name === document.getElementById("name").value) {
       song.className += " active";
     }
-    song.innerHTML = name;
-
+    let container = document.createElement("div");
+    container.style.cssText  = `display:flex;justify-content:space-between`;
+    let nameElement = document.createElement("p");
+    nameElement.id = "selectName"+i;
+    nameElement.innerHTML = name;
+    container.addEventListener("click", () => {
+      loadSavedItem(name);
+      currentView = 1;
+      updateViews();
+    });
+    let deleteElement = document.createElement("button");
+    deleteElement.id = "deleteName"+i;
+    deleteElement.className = "btn btn-dark"
+    deleteElement.style.cssText  = "width:3rem"
+    deleteElement.addEventListener("click", (event) => {
+      event.stopPropagation(); 
+      if(confirm(`delete ${name}?`)){
+        localStorage.removeItem(name);
+        reloadList()
+      }
+    });
+    deleteElement.innerHTML = "X";
+    container.appendChild(nameElement)
+    container.appendChild(deleteElement)
+    song.appendChild(container)
     ul.appendChild(song);
   }
-  ul.addEventListener("click", function (e) {
-    loadSavedItem(e.target.innerHTML);
-    currentView = 1;
-    reloadList();
-    updateViews();
-  });
+  
 }
 
 var connectMidi = (midiAccess)=>{
@@ -344,10 +396,20 @@ var sendMidiChanged = () => {
     send = (message) => {obxd.onMidi(message)};
   }
 }
+
 document.getElementById("send-midi").addEventListener("change", sendMidiChanged, false);
 document.getElementById("reset").addEventListener("click", reset, false);
 document.getElementById("name-button").addEventListener("click", save, false);
 document.getElementById("banks").addEventListener("click", bankChange, false);
+document.getElementById("ctrl1").addEventListener("click", () => {
+  progressChord(true)
+  showChord()
+}, false);
+document.getElementById("ctrl2").addEventListener("click", () => {
+  progressChord()
+  showChord()
+}, false);
+
 document
   .getElementById("patches")
   .addEventListener("click", patchChange, false);
@@ -361,7 +423,7 @@ Pressure.set("#play", {
       "rgba(255, 255, 255, " + event.pressure / 10 + ")";
   },
   end: function () {
-    stopChord();
+    stopChord(undefined, document.getElementById("progress-check").checked);
     document.getElementById("play").style.backgroundColor = "rgba(0, 0, 0, 0)";
   },
   change: function (force, event) {
@@ -453,6 +515,7 @@ mc.on("swipeup swipedown", function (ev) {
   }else{
     progressChord()
   };
-  
+  showChord()
 });
-//showChord();
+
+showChord();
