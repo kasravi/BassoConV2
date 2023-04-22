@@ -1,10 +1,10 @@
 import allChords from "./chords.js";
 
-window.onerror = (a, b, c, d, e) => {
-  alert(`message: ${a}`+`, source: ${b}`+`, lineno: ${c}`+`, colno: ${d}`+`, error: ${e}`);
+// window.onerror = (a, b, c, d, e) => {
+//   //alert(`message: ${a}`+`, source: ${b}`+`, lineno: ${c}`+`, colno: ${d}`+`, error: ${e}`);
 
-  return true;
-};
+//   return true;
+// };
 var chordsDict = {};
 allChords.forEach((chord) => {
   chord.abbv.forEach((a) => {
@@ -184,18 +184,18 @@ async function load() {
   }
 }
 
-function controlChange(){
-  var param = document.getElementById("param").value;
-  var value = document.getElementById("paramVal").value;
-  obxd.onMidi([0xB0, param, value])
-}
+// function controlChange(){
+//   var param = document.getElementById("param").value;
+//   var value = document.getElementById("paramVal").value;
+//   obxd.onMidi([0xB0, param, value])
+// }
 function nextPatch(){
   var x = parseInt(document.getElementById("patches").value);
   obxd.selectPatch(x+1);
   document.getElementById("patches").value = x+1;
 }
-document.getElementById("param").addEventListener("change", controlChange, false);
-document.getElementById("paramVal").addEventListener("change", controlChange, false);
+//document.getElementById("param").addEventListener("change", controlChange, false);
+//document.getElementById("paramVal").addEventListener("change", controlChange, false);
 document.getElementById("npatch").addEventListener("click", nextPatch, false);
 document.getElementById("load").addEventListener("click", start, false);
 Pressure.set("#prev", {
@@ -446,4 +446,13 @@ mc.on("swipeleft swiperight", function (ev) {
   updateViews();
 });
 
+mc.on("swipeup swipedown", function (ev) {
+  console.log(ev.type)
+  if(ev.type === "swipeup"){
+    progressChord(true)
+  }else{
+    progressChord()
+  };
+  
+});
 //showChord();
