@@ -2,7 +2,8 @@
     "name": "BassoCon",
     "short_name": "BassoCon",
     "description": "A Chord Player",
-    "start_url": "/",
+    "id": "/BassoConV2/",
+    "start_url": "/BassoConV2/",
     "display": "standalone",
     "icons": [
         {
