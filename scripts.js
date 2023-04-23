@@ -35,7 +35,20 @@ function showInstallPrompt() {
     });
   });
 }
+// ------------------------------------ prevent pull to refresh -----------------
+const body = document.querySelector('body');
 
+// Add a touchstart event listener to the body
+body.addEventListener('touchstart', function(e) {
+  // Prevent the default action of touchstart
+  e.preventDefault();
+});
+
+// Add a touchmove event listener to the body
+body.addEventListener('touchmove', function(e) {
+  // Prevent the default action of touchmove
+  e.preventDefault();
+});
 // ------------------------------------ debug ------------------------------------
 // window.onerror = (a, b, c, d, e) => {
 //   //alert(`message: ${a}`+`, source: ${b}`+`, lineno: ${c}`+`, colno: ${d}`+`, error: ${e}`);
