@@ -1,5 +1,6 @@
 import allChords from "./chords.js";
 
+// ------------------------------------ install ------------------------------------
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
@@ -17,6 +18,9 @@ window.addEventListener('beforeinstallprompt', (e) => {
 });
 
 function showInstallPrompt() {
+  if (window.matchMedia('(display-mode: standalone)').matches) {
+    return;
+  } 
   const installButton = document.querySelector('#install-button');
   installButton.style.display = 'block';
   installButton.addEventListener('click', () => {
@@ -32,22 +36,28 @@ function showInstallPrompt() {
   });
 }
 
-
+// ------------------------------------ debug ------------------------------------
 // window.onerror = (a, b, c, d, e) => {
 //   //alert(`message: ${a}`+`, source: ${b}`+`, lineno: ${c}`+`, colno: ${d}`+`, error: ${e}`);
 
 //   return true;
 // };
+
+// ------------------------------------ functionality ------------------------------------
+// --------- Global variables
 var chordsDict = {};
+var sw, obxd, send = ()=>{};
+var currentChordNumber = 0;
+var loaded = false; //synths should load after user touch
+var currentView = 1;
+
 allChords.forEach((chord) => {
   chord.abbv.forEach((a) => {
     chordsDict[a] = chord;
   });
 });
 
-var sw, obxd, send = ()=>{};
-
-var num = 0;
+// ---------- Functions
 function parseChords() {
   var chords = document
     .getElementById("chords-input")
@@ -56,26 +66,77 @@ function parseChords() {
     .filter((f) => f);
   return chords;
 }
+
 function getCurrentChordNotes(i) {
   var chords = parseChords();
-  var chord = chordsDict[chords[i || num]];
+  var chord = chordsDict[chords[i || currentChordNumber]];
   var transpose = parseInt(document.getElementById("transpose").value);
   var octave = parseInt(document.getElementById("octave").value);
   return chord.notes.map((f) => f + 12 * octave + transpose);
 }
-function showChord() {
+
+// function getElementsAroundIndex(arr, index, width) {
+//   const half = Math.floor(width/2);
+//   if (index < half) {
+//     return arr.slice(0, width);
+//   }
+
+//   if (index >= arr.length - half) {
+//     return arr.slice(-width);
+//   }
+//   const start = Math.max(index - half, 0);
+//   const end = Math.min(index + half, arr.length - 1);
+//   const sliced = arr.slice(start, end + 1);
+
+//   return sliced;
+// }
+function getSubarrayWithIndex(arr, index, width) {
+  const halfWidth = Math.floor(width / 2);
+  let start = index - halfWidth;
+  let end = start + width - 1;
+  let result = '';
+
+  if (start < 0) {
+    end -= start;
+    start = 0;
+    result = 'start';
+  } else if (end >= arr.length) {
+    start -= end - arr.length + 1;
+    end = arr.length - 1;
+    result = 'end';
+  } else {
+    result = 'middle';
+  }
+
+  return {
+    subarray: arr.slice(start, end + 1),
+    indexInSubarray: index - start,
+    position: result
+  };
+}
+function showChord() { // Display thr chord both on build page and the perform page
   var chords = parseChords();
   if(chords.length === 0){
     return;
   }
-  var currentChord = chordsDict[chords[num]];
+  const maxNumberOfChordsToShow = 5;
+  let chordsToShow = chords.slice(0,10000000)
+  var resultIndex = currentChordNumber
+  var position;
+  if(chords.length>maxNumberOfChordsToShow){
+    const result = getSubarrayWithIndex(chords, currentChordNumber, maxNumberOfChordsToShow);
+    chordsToShow = result.subarray;
+    resultIndex = result.indexInSubarray;
+    position = result.position;
+  }
+  var currentChord = chordsDict[chords[currentChordNumber]];
   document.getElementById("current-chord").innerHTML = currentChord.name;
   var dom = document.getElementById("chords");
   var ht = "";
-  chords
+  chordsToShow
     .map((n) => chordsDict[n])
     .forEach((n, i) => {
-      if (i === num) {
+      if (i === resultIndex) {
         ht +=
           "<span style='color:red;' id='chord" + i + "'>" + n.name + "</span>";
       } else {
@@ -83,54 +144,68 @@ function showChord() {
       }
       ht += " ";
     });
+    if(chordsToShow.length<chords.length){
+      if(position === 'end' || position === 'middle'){
+        ht = '<span>...  </span>'+ht
+      }
+      if(position === 'start' || position === 'middle'){
+        ht = ht+'<span>  ...</span>'
+      }
+    } 
   dom.innerHTML = ht;
 }
-var loaded = false;
+
 function start() {
-  num = 0;
+  currentChordNumber = 0;
   if (!loaded) {
     load();
   }
 }
 
 function reset() {
-  num = 0;
+  currentChordNumber = 0;
   showChord();
 }
-function prev() {
+
+function playPreviousChord() {
   progressChord(true);
   playChord(1);
 }
-function next() {
+
+function playNextChord() {
   progressChord();
   playChord(1);
 }
-function cur() {
+
+function playCurrentChord() {
   playChord(1);
 }
+
 function progressChord(back = false) {
   var len = parseChords().length;
   if (back) {
-    num--;
-    if (num < 0) {
-      num = len - 1;
+    currentChordNumber--;
+    if (currentChordNumber < 0) {
+      currentChordNumber = len - 1;
     }
   } else {
-    num++;
+    currentChordNumber++;
 
-    num %= len;
+    currentChordNumber %= len;
   }
   showChord();
 }
-function playChord(force, i) {
+
+function playChord(force, chordIndex) {
   if (!loaded) {
     return;
   }
-  var notes = getCurrentChordNotes(i);
+  var notes = getCurrentChordNotes(chordIndex);
   notes.forEach((n) => {
     send([0x90, n, Math.round(force * 127)]);
   });
 }
+
 function stopChord(i, progress = true) {
   if (!loaded) {
     return;
@@ -143,6 +218,7 @@ function stopChord(i, progress = true) {
     progressChord();
   }
 }
+
 function changeForce(force) {
   if (!loaded) {
     return;
@@ -192,7 +268,7 @@ async function bankChange() {
 }
 async function patchChange() {
   var x = document.getElementById("patches").value;
-  obxd.selectPatch(x);
+  obxd.selectPatch(parseInt(x));
 }
 function loadPatches() {
   var array = obxd.patches;
@@ -204,8 +280,11 @@ function loadPatches() {
     option.text = i + ": " + array[i];
     patchList.appendChild(option);
   }
+  obxd.selectPatch(0);
 }
+
 var wait = t=>new Promise(r=>setTimeout(r,t));
+
 async function load() {
   try {
     await loadSynth();
@@ -225,11 +304,13 @@ async function load() {
 //   var value = document.getElementById("paramVal").value;
 //   obxd.onMidi([0xB0, param, value])
 // }
+
 function nextPatch(){
   var x = parseInt(document.getElementById("patches").value);
   obxd.selectPatch(x+1);
   document.getElementById("patches").value = x+1;
 }
+
 function prevPatch(){
   var x = Math.max(parseInt(document.getElementById("patches").value)-1,0);
   obxd.selectPatch(x);
@@ -242,7 +323,7 @@ document.getElementById("ppatch").addEventListener("click", prevPatch, false);
 document.getElementById("load").addEventListener("click", start, false);
 Pressure.set("#prev", {
   start: function (event) {
-    prev();
+    playPreviousChord();
   },
   end: function () {
     stopChord(null, false);
@@ -253,7 +334,7 @@ Pressure.set("#prev", {
 });
 Pressure.set("#cur", {
   start: function (event) {
-    cur();
+    playCurrentChord();
   },
   end: function () {
     stopChord(null, false);
@@ -264,7 +345,7 @@ Pressure.set("#cur", {
 });
 Pressure.set("#next", {
   start: function (event) {
-    next();
+    playNextChord();
   },
   end: function () {
     stopChord(null, false);
@@ -273,6 +354,7 @@ Pressure.set("#next", {
     changeForce(force);
   },
 });
+
 function setStorage(cname, cvalue) {
   localStorage.setItem(cname, JSON.stringify(cvalue));
 }
@@ -280,6 +362,7 @@ function setStorage(cname, cvalue) {
 function getFromStorage(cname) {
   return JSON.parse(localStorage.getItem(cname));
 }
+
 function save() {
   var name = document.getElementById("name").value;
   var bank = document.getElementById("banks").value;
@@ -290,6 +373,7 @@ function save() {
   var sendMidi = document.getElementById("send-midi").checked;
   var progress = document.getElementById("progress-check").checked;
   setStorage(name, {
+    name: name,
     bank: bank,
     patch: patch,
     chords: chordsInp,
@@ -300,6 +384,7 @@ function save() {
   });
   reloadList()
 }
+
 function loadSavedItem(name) {
   if (!name) {
     var keys = Object.keys(localStorage);
@@ -310,6 +395,7 @@ function loadSavedItem(name) {
     name = keys[0];
   }
   var {
+    name: name,
     bank: bank,
     patch: patch,
     chords: chordsInp,
@@ -328,12 +414,12 @@ function loadSavedItem(name) {
   showChord();
   document.getElementById("banks").value = bank;
   bankChange().then(() => {
-    document.getElementById("patches").value = patch;
+    document.getElementById("patches").value = parseInt(patch);
     patchChange();
   });
 }
 
-function reloadList() {
+const reloadList = () => {
   var list = document.getElementById("list");
   list.innerHTML = "";
   var ul = document.createElement("ul");
@@ -341,9 +427,10 @@ function reloadList() {
   list.appendChild(ul);
   var keys = Object.keys(localStorage);
   for (let i = 0; i < keys.length; i++) {
-    let name = keys[i];
+    const key = keys[i];
     let song = document.createElement("li");
-    let {
+    const {
+      name: name,
       bank: bank,
       patch: patch,
       chords: chordsInp,
@@ -351,8 +438,8 @@ function reloadList() {
       octave: octave,
       sendMidi: sendMidi,
       progress: progress
-    } = getFromStorage(name);
-    if(!(bank || patch || chordsInp || transpose || octave)){
+    } = getFromStorage(key);
+    if(!(name || bank || patch || chordsInp || transpose || octave) || name !== key){
       continue;
     }
     song.className = "list-group-item";
@@ -368,6 +455,7 @@ function reloadList() {
       loadSavedItem(name);
       currentView = 1;
       updateViews();
+      reloadList();
     });
     let deleteElement = document.createElement("button");
     deleteElement.id = "deleteName"+i;
@@ -389,9 +477,9 @@ function reloadList() {
   
 }
 
-var connectMidi = (midiAccess)=>{
-  var outputs = midiAccess.outputs.values();
-      var output = outputs.next().value;
+const connectMidi = (midiAccess)=>{
+  const outputs = midiAccess.outputs.values();
+      const output = outputs.next().value;
     
       // Check if an output is available
       if (!output) {
@@ -403,7 +491,8 @@ var connectMidi = (midiAccess)=>{
     
       send = (message) => {output.send(message)};
 }
-var sendMidiChanged = () => {
+
+const sendMidiChanged = () => {
   
   if (document.getElementById("send-midi").checked) {
     document.getElementById("internal-synth").style.display = 'none';
@@ -466,6 +555,7 @@ function absorbEvent_(event) {
   e.returnValue = false;
   return false;
 }
+
 function preventLongPressMenu(nodes) {
   for (var i = 0; i < nodes.length; i++) {
     nodes[i].ontouchstart = absorbEvent_;
@@ -474,9 +564,10 @@ function preventLongPressMenu(nodes) {
     nodes[i].ontouchcancel = absorbEvent_;
   }
 }
+
 preventLongPressMenu([document.getElementById("play")]);
 
-var tributeAttributes = {
+const tributeAttributes = {
   autocompleteMode: true,
   noMatchTemplate: "",
   values: allChords.flatMap((c) => c.abbv).map((f) => ({ key: f, value: f })),
@@ -494,7 +585,8 @@ var tributeAttributes = {
     return item.string;
   },
 };
-var tributeAutocompleteTest = new Tribute(
+
+const tributeAutocomplete = new Tribute(
   Object.assign(
     {
       menuContainer: document.getElementById("chords-container"),
@@ -502,12 +594,12 @@ var tributeAutocompleteTest = new Tribute(
     tributeAttributes
   )
 );
-tributeAutocompleteTest.attach(document.getElementById("chords-input"));
 
-var bodyElement = document.getElementsByTagName("body")[0];
+tributeAutocomplete.attach(document.getElementById("chords-input"));
 
-var mc = new Hammer(bodyElement);
-var currentView = 1;
+const bodyElement = document.getElementsByTagName("body")[0];
+
+const mc = new Hammer(bodyElement);
 
 function updateViews() {
   var views = [
@@ -523,9 +615,6 @@ function updateViews() {
     }
   });
 }
-
-updateViews();
-sendMidiChanged();
 
 mc.on("swipeleft swiperight", function (ev) {
   var s = ev.type === "swipeleft" ? -1 : 1;
@@ -543,4 +632,6 @@ mc.on("swipeup swipedown", function (ev) {
   showChord()
 });
 
+updateViews();
+sendMidiChanged();
 showChord();
