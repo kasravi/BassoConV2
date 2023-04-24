@@ -43,7 +43,7 @@
   <div id="list"></div>
   <div id="build">
     <p class="scene-number"
-      style="color: rgba(0, 0, 0, 0.1);font-size: 20rem;position: fixed;bottom: 0;right: 0;margin-bottom: -10rem;"></p>
+      style="color: rgba(0, 0, 0, 0.1);font-size: 20rem;position: fixed;bottom: 0;right: 0;margin-bottom: -10rem; z-index:-1000"></p>
     <div style="display: flex;justify-content: space-between;">
       <button class="btn btn-secondary" style="margin-top: 1rem; width: 40%;" id="create-scene">
         New Scene
@@ -119,7 +119,7 @@
         <input type="checkbox" id="play-on-beat" checked style="margin-left: 10px;" />
         <label for="play-on-beat">Play On Beat</label>
         <input type="checkbox" id="reset-scene" checked style="margin-left: 20px;" />
-        <label for="reset-scene">Play On Beat</label>
+        <label for="reset-scene">Reset on Scene Change</label>
       </div>
       <div id="internal-synth">
         <div style="display:flex;justify-content:space-between;padding-left: 10px;padding-right: 10px;">
@@ -192,7 +192,7 @@
   </div>
   <div id="perform">
     <p class="scene-number"
-      style="color: rgba(0, 0, 0, 0.1);font-size: 20rem;position: fixed;bottom: 0;right: 0;margin-bottom: -10rem;"></p>
+      style="color: rgba(0, 0, 0, 0.1);font-size: 20rem;position: fixed;bottom: 0;right: 0;margin-bottom: -10rem; z-index:-1000"></p>
     <div class="container-fluid p-0" style="height: 100vh">
       <div class="row" style="height: 20%">
         <div id="ctrl1" class="col-6 d-flex flex-column justify-content-center align-items-center"

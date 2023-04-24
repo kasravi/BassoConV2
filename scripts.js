@@ -614,7 +614,7 @@ tributeAutocomplete.attach(document.getElementById("chords-input"));
 const bodyElement = document.getElementsByTagName("body")[0];
 
 const mc = new Hammer(bodyElement);
-mc.get('swipe').set({ direction: Hammer.DIRECTION_VERTICAL });
+mc.get('swipe').set({ direction: Hammer.DIRECTION_ALL  });
 function updateViews() {
   var views = [
     document.getElementById("list"),
