@@ -63,6 +63,7 @@ var sw, obxd, send = ()=>{};
 var currentChordNumber = 0;
 var loaded = false; //synths should load after user touch
 var currentView = 1;
+var scene=0;
 
 allChords.forEach((chord) => {
   chord.abbv.forEach((a) => {
@@ -613,7 +614,7 @@ tributeAutocomplete.attach(document.getElementById("chords-input"));
 const bodyElement = document.getElementsByTagName("body")[0];
 
 const mc = new Hammer(bodyElement);
-
+mc.get('swipe').set({ direction: Hammer.DIRECTION_VERTICAL });
 function updateViews() {
   var views = [
     document.getElementById("list"),
@@ -636,15 +637,72 @@ mc.on("swipeleft swiperight", function (ev) {
 });
 
 mc.on("swipeup swipedown", function (ev) {
-  console.log(ev.type)
   if(ev.type === "swipeup"){
-    progressChord(true)
+    scene--;
   }else{
-    progressChord()
+    scene++;
   };
   showChord()
+  showScene()
 });
 
+const showScene = ()=>{
+  for (var dom of document.getElementsByClassName("scene-number")){
+  dom.innerText = scene+1;
+  }
+}
+
+var commonChordArray = [
+  "C G Am F",
+  "Am F C G",
+  "C F G F",
+  "C Am F G",
+  "Dm G C Am",
+]
+
+function loadCommonChords() {
+  var cl = document.getElementById("common-chords");
+  cl.innerHTML = "";
+  for (var i = 0; i < commonChordArray.length; i++) {
+    const option = document.createElement("option");
+    option.value = commonChordArray[i];
+    option.text = i + ": " + commonChordArray[i];
+    
+    cl.appendChild(option);
+    
+  }
+  cl.addEventListener('change',()=>{
+    var val = document.getElementById("common-chords").value;
+    document.getElementById("chords-input").value = val;
+  })
+}
+
+var commonRhythmArray = [
+  "4-12345'",
+  "1-12345 1-12345 1-12345 1-12345"
+]
+
+function loadCommonRhythms() {
+  var cl = document.getElementById("common-rhythms");
+  cl.innerHTML = "";
+  for (var i = 0; i < commonRhythmArray.length; i++) {
+    const option = document.createElement("option");
+    option.value = commonRhythmArray[i];
+    option.text = i + ": " + commonRhythmArray[i];
+    
+    cl.appendChild(option);
+    
+  }
+  cl.addEventListener('change',()=>{
+    var val = document.getElementById("common-rhythms").value;
+    document.getElementById("rhythm-input").value = val;
+  })
+}
+
+loadCommonChords();
+loadCommonRhythms();
+showScene();
+reloadList();
 updateViews();
 sendMidiChanged();
 showChord();

@@ -255,12 +255,12 @@ var chordsTypes = [
       "abbv": "♭9sus",
       "scale-mode": ""
     },
-    {
-      "notes": "1 3 (5) ♭7 ♭9 ♯9 ♯11 b13",
-      "name": "dominant altered (super-locrian)",
-      "abbv": "7alt",
-      "scale-mode": ""
-    }
+    // {
+    //   "notes": "1 3 (5) ♭7 ♭9 ♯9 ♯11 b13",
+    //   "name": "dominant altered (super-locrian)",
+    //   "abbv": "7alt",
+    //   "scale-mode": ""
+    // }
   ]
 
   var notesDict = {
@@ -295,10 +295,24 @@ var  getNote = (note,d) => {
     return majorScales[note][(parseInt(baseDegree)-1)%7]+acc
 }
 export default chordsTypes.flatMap(f=>notes.map(note=>{
-    var notesArr = f.notes.split(" ").filter(n=>n[0]!="(").map(n=>getNote(note, n));
+    var noteNum = 5-f.notes.split(" ").filter(n=>n[0]!=="(").length;
+    var notesArr = f.notes.split(" ").reduce((a,n,i)=>{
+      if(n[0]!=="("){
+        a.push(getNote(note, n))
+      }else{
+        if(noteNum>0){
+          a.push(getNote(note, n.replace(/[\(\)]/g, "")));
+          noteNum--;
+        }
+      }
+      return a;
+    },[]);
+
+    var notes = notesArr.map(n=>notesDict[n]+60);
+    notes = [...notes, ...notes.map(f=>f+12), ...notes.map(f=>f+24)].slice(0,5)
     return {
         name:note + " " + f.name, 
         abbv:f.abbv.split(",").map(a=>note+a.trim()),
         noteNames:notesArr.join(" "),
-        notes:notesArr.map(n=>notesDict[n]+60)
+        notes:notes
     }}))

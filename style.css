@@ -1,6 +1,8 @@
 * { margin:0; padding:0; } /* to remove the top and left whitespace */
-
-html, body { width:100%; height:100%; } /* just to be sure these are full screen*/
+/* * {
+    outline: 1px solid #f00 !important;
+  } */
+html, body { width:100vw;  } /* just to be sure these are full screen*/
 
 #root, #keys{
     display: flex;
