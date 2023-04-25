@@ -40,10 +40,21 @@
     <p style="font-size: 100px">LOAD</p>
   </div>
 
-  <div id="list"></div>
+  <div id="list">
+    <div id="songs"></div>
+    <div style="display: block;position: fixed;bottom: 0;">
+      <p id="log"  style="display: none;"></p>
+      <div class="mb-2 mt-2" style="display:flex;justify-content:space-between">
+        <button id="log-button" class="btn btn-dark m-1">Log</button>
+        <button id="import" class="btn btn-primary m-1">Import</button>
+        <button id="export" class="btn btn-primary m-1">Export</button>
+      </div>
+    </div>
+  </div>
   <div id="build">
     <p class="scene-number"
-      style="color: rgba(0, 0, 0, 0.1);font-size: 20rem;position: fixed;bottom: 0;right: 0;margin-bottom: -10rem; z-index:-1000"></p>
+      style="color: rgba(0, 0, 0, 0.1);font-size: 20rem;position: fixed;bottom: 0;right: 0;margin-bottom: -10rem; z-index:-1000">
+    </p>
     <div style="display: flex;justify-content: space-between;">
       <button class="btn btn-secondary" style="margin-top: 1rem; width: 40%;" id="create-scene">
         New Scene
@@ -192,7 +203,8 @@
   </div>
   <div id="perform">
     <p class="scene-number"
-      style="color: rgba(0, 0, 0, 0.1);font-size: 20rem;position: fixed;bottom: 0;right: 0;margin-bottom: -10rem; z-index:-1000"></p>
+      style="color: rgba(0, 0, 0, 0.1);font-size: 20rem;position: fixed;bottom: 0;right: 0;margin-bottom: -10rem; z-index:-1000">
+    </p>
     <div class="container-fluid p-0" style="height: 100vh">
       <div class="row" style="height: 20%">
         <div id="ctrl1" class="col-6 d-flex flex-column justify-content-center align-items-center"

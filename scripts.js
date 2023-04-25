@@ -4,8 +4,8 @@ import allChords from "./chords.js";
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
-        .then((reg) => console.log('Service worker registered.', reg))
-        .catch((err) => console.log('Service worker registration failed.', err));
+      .then((reg) => console.log('Service worker registered.', reg))
+      .catch((err) => console.log('Service worker registration failed.', err));
   });
 }
 
@@ -20,7 +20,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
 function showInstallPrompt() {
   if (window.matchMedia('(display-mode: standalone)').matches) {
     return;
-  } 
+  }
   const installButton = document.querySelector('#install-button');
   installButton.style.display = 'block';
   installButton.addEventListener('click', () => {
@@ -39,31 +39,56 @@ function showInstallPrompt() {
 const body = document.querySelector('body');
 
 // Add a touchstart event listener to the body
-body.addEventListener('touchstart', function(e) {
+body.addEventListener('touchstart', function (e) {
   // Prevent the default action of touchstart
   e.preventDefault();
 });
 
 // Add a touchmove event listener to the body
-body.addEventListener('touchmove', function(e) {
+body.addEventListener('touchmove', function (e) {
   // Prevent the default action of touchmove
   e.preventDefault();
 });
 // ------------------------------------ debug ------------------------------------
-// window.onerror = (a, b, c, d, e) => {
-//   //alert(`message: ${a}`+`, source: ${b}`+`, lineno: ${c}`+`, colno: ${d}`+`, error: ${e}`);
+window.onerror = (a, b, c, d, e) => {
+  document.getElementById("log").innerText += `
+  message: ${a}
+  source: ${b}
+  lineno: ${c}
+  colno: ${d}
+  error: ${e}
+  `;
 
-//   return true;
-// };
+  return true;
+};
 
 // ------------------------------------ functionality ------------------------------------
 // --------- Global variables
 var chordsDict = {};
-var sw, obxd, send = ()=>{};
+var sw, obxd, send = () => { };
 var currentChordNumber = 0;
 var loaded = false; //synths should load after user touch
 var currentView = 1;
-var scene=0;
+var scene = 0;
+var model = {
+  name: "new",
+  scenes: [
+    {
+      chords: ["C","E", "F"],
+      rhythm: "4-12345`",
+      bank: "factory.fxb",
+      patch: 0,
+      transpose: 0,
+      octave: 0,
+      sendMidi: false,
+      progress: true,
+      playOnBeat: false,
+      resetOnSceneChange: true,
+      bpm: 60,
+      meter: "4/4"
+    }
+  ]
+}
 
 allChords.forEach((chord) => {
   chord.abbv.forEach((a) => {
@@ -73,6 +98,7 @@ allChords.forEach((chord) => {
 
 // ---------- Functions
 function parseChords() {
+  a=t
   var chords = document
     .getElementById("chords-input")
     .value.split(" ")
@@ -81,29 +107,32 @@ function parseChords() {
   return chords;
 }
 
+function parseRhythm() {
+  var beats = document
+    .getElementById("rhythm-input")
+    .value.split(" ")
+    .map((f) => f.trim())
+    .filter((f) => f)
+    .map(f=>{
+      var ttb = false;
+      var gliss = false;
+      if(f.indexOf("v")>-1) ttb=true;
+      if(f.indexOf("v")>-1) gliss=true;
+      f = f.replace(/[^0-9-]/g, "");
+      var t = f.split("-");
+      return {time:t[0],notes:t[1].split().map(parseInt), ttb, gliss}
+    });
+  return beats;
+}
+
 function getCurrentChordNotes(i) {
-  var chords = parseChords();
+  var chords = model.scenes[scene].chords;
   var chord = chordsDict[chords[i || currentChordNumber]];
-  var transpose = parseInt(document.getElementById("transpose").value);
-  var octave = parseInt(document.getElementById("octave").value);
+  var transpose = model.scenes[scene].transpose;
+  var octave = model.scenes[scene].octave;
   return chord.notes.map((f) => f + 12 * octave + transpose);
 }
 
-// function getElementsAroundIndex(arr, index, width) {
-//   const half = Math.floor(width/2);
-//   if (index < half) {
-//     return arr.slice(0, width);
-//   }
-
-//   if (index >= arr.length - half) {
-//     return arr.slice(-width);
-//   }
-//   const start = Math.max(index - half, 0);
-//   const end = Math.min(index + half, arr.length - 1);
-//   const sliced = arr.slice(start, end + 1);
-
-//   return sliced;
-// }
 function getSubarrayWithIndex(arr, index, width) {
   const halfWidth = Math.floor(width / 2);
   let start = index - halfWidth;
@@ -128,16 +157,16 @@ function getSubarrayWithIndex(arr, index, width) {
     position: result
   };
 }
-function showChord() { // Display thr chord both on build page and the perform page
-  var chords = parseChords();
-  if(chords.length === 0){
+function showChord() { // Display the chord both on build page and the perform page
+  var chords = model.scenes[scene].chords;
+  if (chords.length === 0) {
     return;
   }
   const maxNumberOfChordsToShow = 5;
-  let chordsToShow = chords.slice(0,10000000)
+  let chordsToShow = chords.slice(0, 10000000)
   var resultIndex = currentChordNumber
   var position;
-  if(chords.length>maxNumberOfChordsToShow){
+  if (chords.length > maxNumberOfChordsToShow) {
     const result = getSubarrayWithIndex(chords, currentChordNumber, maxNumberOfChordsToShow);
     chordsToShow = result.subarray;
     resultIndex = result.indexInSubarray;
@@ -158,14 +187,14 @@ function showChord() { // Display thr chord both on build page and the perform p
       }
       ht += " ";
     });
-    if(chordsToShow.length<chords.length){
-      if(position === 'end' || position === 'middle'){
-        ht = '<span>...  </span>'+ht
-      }
-      if(position === 'start' || position === 'middle'){
-        ht = ht+'<span>  ...</span>'
-      }
-    } 
+  if (chordsToShow.length < chords.length) {
+    if (position === 'end' || position === 'middle') {
+      ht = '<span>...  </span>' + ht
+    }
+    if (position === 'start' || position === 'middle') {
+      ht = ht + '<span>  ...</span>'
+    }
+  }
   dom.innerHTML = ht;
 }
 
@@ -196,7 +225,7 @@ function playCurrentChord() {
 }
 
 function progressChord(back = false) {
-  var len = parseChords().length;
+  var len = model.scenes[scene].chords.length;
   if (back) {
     currentChordNumber--;
     if (currentChordNumber < 0) {
@@ -216,7 +245,7 @@ function playChord(force, chordIndex) {
   }
   var notes = getCurrentChordNotes(chordIndex);
   notes.forEach((n) => {
-    send([0x90, n, Math.round(force * 127)]);
+    send([0x90, n, Math.round(force * 127)]);//TODO
   });
 }
 
@@ -275,14 +304,16 @@ async function loadSynth() {
   loadPatches();
   obxd.selectPatch(31);
 }
-async function bankChange() {
-  var x = document.getElementById("banks").value;
+async function bankChange(x) {
+  model.scenes[scene].bank = x;
+  if(!obxd) return;
   await obxd.loadBank("presets/" + x);
   loadPatches();
 }
-async function patchChange() {
-  var x = document.getElementById("patches").value;
-  obxd.selectPatch(parseInt(x));
+function patchChange(x) {
+  model.scenes[scene].patch = x;
+  if(!obxd) return;
+  obxd.selectPatch(x);
 }
 function loadPatches() {
   var array = obxd.patches;
@@ -297,7 +328,7 @@ function loadPatches() {
   obxd.selectPatch(0);
 }
 
-var wait = t=>new Promise(r=>setTimeout(r,t));
+var wait = t => new Promise(r => setTimeout(r, t));
 
 async function load() {
   try {
@@ -319,16 +350,19 @@ async function load() {
 //   obxd.onMidi([0xB0, param, value])
 // }
 
-function nextPatch(){
-  var x = parseInt(document.getElementById("patches").value);
-  obxd.selectPatch(x+1);
-  document.getElementById("patches").value = x+1;
+function nextPatch() {
+  var x = model.scenes[scene].patch;
+  x++;
+  obxd.selectPatch(x);
+  document.getElementById("patches").value = x;//TODO max
+  model.scenes[scene].patch = x;
 }
 
-function prevPatch(){
-  var x = Math.max(parseInt(document.getElementById("patches").value)-1,0);
+function prevPatch() {
+  var x = Math.max(model.scenes[scene].patch - 1, 0);
   obxd.selectPatch(x);
   document.getElementById("patches").value = x;
+  model.scenes[scene].patch = x;
 }
 //document.getElementById("param").addEventListener("change", controlChange, false);
 //document.getElementById("paramVal").addEventListener("change", controlChange, false);
@@ -378,92 +412,86 @@ function getFromStorage(cname) {
 }
 
 function save() {
-  var name = document.getElementById("name").value;
-  var bank = document.getElementById("banks").value;
-  var patch = document.getElementById("patches").value;
-  var chordsInp = document.getElementById("chords-input").value;
-  var transpose = document.getElementById("transpose").value;
-  var octave = document.getElementById("octave").value;
-  var sendMidi = document.getElementById("send-midi").checked;
-  var progress = document.getElementById("progress-check").checked;
-  setStorage(name, {
-    name: name,
-    bank: bank,
-    patch: patch,
-    chords: chordsInp,
-    transpose: transpose,
-    octave: octave,
-    sendMidi: sendMidi,
-    progress: progress
-  });
+  setStorage(model.name, model);
   reloadList()
+}
+
+const loadModelToUi = () => {
+
+  document.getElementById("name").value = model.name;
+
+  document.getElementById("chords-input").value = model.scenes[scene].chords.join(" ");
+  document.getElementById("rhythm-input").value = model.scenes[scene].rhythm;
+  document.getElementById("transpose").value = model.scenes[scene].transpose;
+  document.getElementById("octave").value = model.scenes[scene].octave;
+  document.getElementById("send-midi").checked = model.scenes[scene].sendMidi;
+  document.getElementById("progress-check").checked = model.scenes[scene].progress;
+  showChord();
+  document.getElementById("banks").value = model.scenes[scene].bank;
+  bankChange(model.scenes[scene].bank).then(() => {
+    document.getElementById("patches").value = model.scenes[scene].patch;
+    patchChange(model.scenes[scene].patch);
+  });
+  document.getElementById("play-on-beat").checked = model.scenes[scene].playOnBeat
+  document.getElementById("reset-scene").checked = model.scenes[scene].resetOnSceneChange
+  document.getElementById("bpm").value = model.scenes[scene].bpm
+  document.getElementById("meter").value = model.scenes[scene].meter
+  sendMidiChanged();
+if(model.scenes.length>1) document.getElementById("delete-scene").style.display = "block";
+
 }
 
 function loadSavedItem(name) {
   if (!name) {
-    var keys = Object.keys(localStorage);
+    var keys = getSavedItems();
     if (keys.length === 0) {
-      document.getElementById("chords-input").value = "C7 E G";
+      scene = 0;
+      loadModelToUi();
       return;
     }
     name = keys[0];
   }
-  var {
-    name: name,
-    bank: bank,
-    patch: patch,
-    chords: chordsInp,
-    transpose: transpose,
-    octave: octave,
-    sendMidi: sendMidi,
-    progress: progress
-  } = getFromStorage(name);
-  document.getElementById("name").value = name;
+  model = getFromStorage(name);
+  scene = 0;
+  loadModelToUi();
+}
 
-  document.getElementById("chords-input").value = chordsInp;
-  document.getElementById("transpose").value = transpose;
-  document.getElementById("octave").value = octave;
-  document.getElementById("send-midi").checked = sendMidi;
-  document.getElementById("progress-check").checked = progress;
-  showChord();
-  document.getElementById("banks").value = bank;
-  bankChange().then(() => {
-    document.getElementById("patches").value = parseInt(patch);
-    patchChange();
-  });
+const getSavedItems = () => {
+  let result = []
+  var keys = Object.keys(localStorage);
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+    const {
+      name: name,
+      scenes: scenes
+    } = getFromStorage(key);
+    if (!name || name !== key) {
+      continue;
+    }
+    result.push(key)
+  }
+  return result;
 }
 
 const reloadList = () => {
-  var list = document.getElementById("list");
+  var list = document.getElementById("songs");
   list.innerHTML = "";
   var ul = document.createElement("ul");
   ul.className = "list-group";
   list.appendChild(ul);
-  var keys = Object.keys(localStorage);
+  var keys = getSavedItems();
   for (let i = 0; i < keys.length; i++) {
-    const key = keys[i];
+    const name = keys[i];
     let song = document.createElement("li");
-    const {
-      name: name,
-      bank: bank,
-      patch: patch,
-      chords: chordsInp,
-      transpose: transpose,
-      octave: octave,
-      sendMidi: sendMidi,
-      progress: progress
-    } = getFromStorage(key);
-    if(!(name || bank || patch || chordsInp || transpose || octave) || name !== key){
-      continue;
-    }
+
     song.className = "list-group-item";
     if (name === document.getElementById("name").value) {
       song.className += " active";
     }
     let container = document.createElement("div");
-    container.style.cssText  = `display:flex;justify-content:space-between`;
+    container.style.cssText = `display:flex;justify-content:space-between`;
     let nameElement = document.createElement("p");
-    nameElement.id = "selectName"+i;
+    nameElement.id = "selectName" + i;
     nameElement.innerHTML = name;
     container.addEventListener("click", () => {
       loadSavedItem(name);
@@ -472,12 +500,12 @@ const reloadList = () => {
       reloadList();
     });
     let deleteElement = document.createElement("button");
-    deleteElement.id = "deleteName"+i;
+    deleteElement.id = "deleteName" + i;
     deleteElement.className = "btn btn-dark"
-    deleteElement.style.cssText  = "width:3rem"
+    deleteElement.style.cssText = "width:3rem"
     deleteElement.addEventListener("click", (event) => {
-      event.stopPropagation(); 
-      if(confirm(`delete ${name}?`)){
+      event.stopPropagation();
+      if (confirm(`delete ${name}?`)) {
         localStorage.removeItem(name);
         reloadList()
       }
@@ -488,62 +516,101 @@ const reloadList = () => {
     song.appendChild(container)
     ul.appendChild(song);
   }
-  
+
 }
 
-const connectMidi = (midiAccess)=>{
+const connectMidi = (midiAccess) => {
   const outputs = midiAccess.outputs.values();
-      const output = outputs.next().value;
-    
-      // Check if an output is available
-      if (!output) {
-        alert("No MIDI output devices are available.");
-        document.getElementById("send-midi").checked = false;
-        sendMidiChanged();
-        return;
-      }
-    
-      send = (message) => {output.send(message)};
+  const output = outputs.next().value;
+
+  // Check if an output is available
+  if (!output) {
+    alert("No MIDI output devices are available.");
+    document.getElementById("send-midi").checked = false;
+    sendMidiChanged();
+    return;
+  }
+
+  send = (message) => { output.send(message) };
 }
 
 const sendMidiChanged = () => {
-  
-  if (document.getElementById("send-midi").checked) {
+  model.scenes[scene].sendMidi = document.getElementById("send-midi").checked;
+  if (model.scenes[scene].sendMidi) {
     document.getElementById("internal-synth").style.display = 'none';
-    
-    navigator.requestMIDIAccess().then(function(midiAccess) {
+
+    navigator.requestMIDIAccess().then(function (midiAccess) {
       // Get the first available MIDI output
       connectMidi(midiAccess);
       midiAccess.onstatechange = (event) => {
         connectMidi(midiAccess);
       };
     });
-    
+
   } else {
     document.getElementById("internal-synth").style.display = 'block';
-    send = (message) => {obxd.onMidi(message)};
+    send = (message) => { obxd.onMidi(message) };
   }
 }
 
-document.getElementById("send-midi").addEventListener("change", sendMidiChanged, false);
-document.getElementById("reset").addEventListener("click", reset, false);
-document.getElementById("name-button").addEventListener("click", save, false);
-document.getElementById("banks").addEventListener("click", bankChange, false);
-document.getElementById("ctrl1").addEventListener("click", () => {
+const nameChange = ()=>{
+  model.name = document.getElementById("name").value;
+}
+
+const chordsInpChange = ()=>{
+  model.scenes[scene].chords = parseChords();
+}
+
+const rhythmInpChange = ()=>{
+  model.scenes[scene].rhythm = parseRhythm();
+}
+
+const createScene = () =>{
+  var c = JSON.parse(JSON.stringify(model.scenes[scene]));
+  model.scenes.splice(scene+1,0,c);
+  scene++;
+  showScene();
+  document.getElementById("delete-scene").style.display = "block";
+}
+
+const deleteScene = () =>{
+  if(model.scenes.length === 1) return;
+  model.scenes.splice(scene,1);
+  if(model.scenes.length === 1) document.getElementById("delete-scene").style.display = "none";
+  showScene()
+}
+
+document.getElementById("send-midi").addEventListener("change", sendMidiChanged);
+document.getElementById("reset-scene").addEventListener("change", (e)=>{model.scenes[scene].resetOnSceneChange = e.target.checked});
+document.getElementById("play-on-beat").addEventListener("change", (e)=>{model.scenes[scene].playOnBeat = e.target.checked});
+document.getElementById("progress-check").addEventListener("change", (e)=>{model.scenes[scene].progress = e.target.checked});
+document.getElementById("reset").addEventListener("change", reset);
+document.getElementById("name-button").addEventListener("click", save);
+document.getElementById("name").addEventListener("change", nameChange);
+document.getElementById("chords-input").addEventListener("input", chordsInpChange);
+document.getElementById("rhythm-input").addEventListener("input", rhythmInpChange);
+document.getElementById("banks").addEventListener("change", e=>bankChange(e.target.value));
+document.getElementById("create-scene").addEventListener("click", createScene)
+document.getElementById("delete-scene").addEventListener("click", deleteScene)
+  document.getElementById("ctrl1").addEventListener("click", () => {
   progressChord(true)
   showChord()
-}, false);
+});
 document.getElementById("ctrl2").addEventListener("click", () => {
   progressChord()
   showChord()
-}, false);
+});
 
 document
   .getElementById("patches")
-  .addEventListener("click", patchChange, false);
+  .addEventListener("input", e=>patchChange(e.target.value), false);
 document
   .getElementById("chords-input")
   .addEventListener("input", () => showChord());
+
+document.getElementById("log-button").addEventListener("click", ()=>{
+  document.getElementById("log").style.display = "block";
+});
 Pressure.set("#play", {
   start: function (event) {
     playChord(event.pressure);
@@ -551,7 +618,7 @@ Pressure.set("#play", {
       "rgba(255, 255, 255, " + event.pressure / 10 + ")";
   },
   end: function () {
-    stopChord(undefined, document.getElementById("progress-check").checked);
+    stopChord(undefined, model.scenes[scene].progress);
     document.getElementById("play").style.backgroundColor = "rgba(0, 0, 0, 0)";
   },
   change: function (force, event) {
@@ -614,7 +681,7 @@ tributeAutocomplete.attach(document.getElementById("chords-input"));
 const bodyElement = document.getElementsByTagName("body")[0];
 
 const mc = new Hammer(bodyElement);
-mc.get('swipe').set({ direction: Hammer.DIRECTION_ALL  });
+mc.get('swipe').set({ direction: Hammer.DIRECTION_ALL });
 function updateViews() {
   var views = [
     document.getElementById("list"),
@@ -637,19 +704,23 @@ mc.on("swipeleft swiperight", function (ev) {
 });
 
 mc.on("swipeup swipedown", function (ev) {
-  if(ev.type === "swipeup"){
-    scene--;
-  }else{
-    scene++;
+  if (ev.type === "swipeup") {
+    if(scene>0) scene--;
+  } else {
+    if(scene<model.scenes.length-1) scene++;
   };
+  if(model.scenes[scene].resetOnScene){
+    currentChordNumber = 0;
+  }
   showChord()
   showScene()
 });
 
-const showScene = ()=>{
-  for (var dom of document.getElementsByClassName("scene-number")){
-  dom.innerText = scene+1;
+const showScene = () => {
+  for (var dom of document.getElementsByClassName("scene-number")) {
+    dom.innerText = scene + 1;
   }
+  loadModelToUi();
 }
 
 var commonChordArray = [
@@ -667,13 +738,14 @@ function loadCommonChords() {
     const option = document.createElement("option");
     option.value = commonChordArray[i];
     option.text = i + ": " + commonChordArray[i];
-    
+
     cl.appendChild(option);
-    
+
   }
-  cl.addEventListener('change',()=>{
+  cl.addEventListener('change', () => {
     var val = document.getElementById("common-chords").value;
     document.getElementById("chords-input").value = val;
+    chordsInpChange()
   })
 }
 
@@ -689,13 +761,14 @@ function loadCommonRhythms() {
     const option = document.createElement("option");
     option.value = commonRhythmArray[i];
     option.text = i + ": " + commonRhythmArray[i];
-    
+
     cl.appendChild(option);
-    
+
   }
-  cl.addEventListener('change',()=>{
+  cl.addEventListener('change', () => {
     var val = document.getElementById("common-rhythms").value;
     document.getElementById("rhythm-input").value = val;
+    rhythmInpChange()
   })
 }
 
