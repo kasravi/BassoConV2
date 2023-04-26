@@ -67,15 +67,18 @@ window.onerror = (a, b, c, d, e) => {
 var chordsDict = {};
 var sw, obxd, send = () => { };
 var currentChordNumber = 0;
+var currentBeat = 0;
+var playing = false;
 var loaded = false; //synths should load after user touch
 var currentView = 1;
+var currentForce = 1;
 var scene = 0;
 var model = {
   name: "new",
   scenes: [
     {
       chords: ["C","E", "F"],
-      rhythm: "4-12345`",
+      rhythm: [{time:1,notes:[1,2,3,4,5],ttb:false,gliss:true}],
       bank: "factory.fxb",
       patch: 0,
       transpose: 0,
@@ -98,7 +101,6 @@ allChords.forEach((chord) => {
 
 // ---------- Functions
 function parseChords() {
-  a=t
   var chords = document
     .getElementById("chords-input")
     .value.split(" ")
@@ -117,10 +119,10 @@ function parseRhythm() {
       var ttb = false;
       var gliss = false;
       if(f.indexOf("v")>-1) ttb=true;
-      if(f.indexOf("v")>-1) gliss=true;
+      if(f.indexOf("`")>-1) gliss=true;
       f = f.replace(/[^0-9-]/g, "");
       var t = f.split("-");
-      return {time:t[0],notes:t[1].split().map(parseInt), ttb, gliss}
+      return {time:parseFloat(t[0]),notes:t[1].split("").map(f=>parseInt(f)), ttb, gliss}
     });
   return beats;
 }
@@ -207,7 +209,9 @@ function start() {
 
 function reset() {
   currentChordNumber = 0;
+  currentBeat = 0;
   showChord();
+  showBeat();
 }
 
 function playPreviousChord() {
@@ -239,26 +243,78 @@ function progressChord(back = false) {
   showChord();
 }
 
+const progressBeat = ()=>{
+  var len = model.scenes[scene].rhythm.length;
+
+  currentBeat++;
+
+  currentBeat %= len;
+  
+  showBeat();
+}
+
+
 function playChord(force, chordIndex) {
   if (!loaded) {
     return;
   }
   var notes = getCurrentChordNotes(chordIndex);
+  if(model.scenes[scene].playOnBeat && model.scenes[scene].bpm>0 && model.scenes[scene].rhythm.length>0){
+    currentForce = force;
+    playBeat(notes, true)
+  }else{
   notes.forEach((n) => {
-    send([0x90, n, Math.round(force * 127)]);//TODO
+    send([0x90, n, Math.round(force * 127)]);
   });
+}
+}
+
+function playBeat(cnotes,start){
+  if(start){
+    playing=true;
+  }
+  cnotes.forEach((n) => {
+    send([0x80, n, 0]);
+  });
+  if(playing && JSON.stringify(cnotes) === JSON.stringify(getCurrentChordNotes())){
+    const oneBeatTime = 60/model.scenes[scene].bpm;
+    const {time,notes,ttb,gliss} = model.scenes[scene].rhythm[currentBeat];
+    const notesDict = notes.reduce((a,f)=>{a[f-1]=true;return a},{});
+    let pnotes = cnotes.filter((f,i)=>notesDict[i]);
+    const stopTime = 1000*oneBeatTime*(4/time);
+    if(ttb){
+      pnotes = pnotes.reverse();
+    }
+    setTimeout(()=>playBeat(cnotes),stopTime);
+    if(gliss){
+      pnotes.forEach((n,i)=>{
+        setTimeout(()=>send([0x90, n, Math.round(currentForce * 127)]),i*stopTime/10);
+      })
+    }else{
+      pnotes.forEach((n,i)=>{
+        send([0x90, n, Math.round(currentForce * 127)]);
+      })
+    }
+    progressBeat();
+  }
 }
 
 function stopChord(i, progress = true) {
   if (!loaded) {
     return;
   }
-  var notes = getCurrentChordNotes(i);
-  notes.forEach((n) => {
-    send([0x80, n, 0]);
-  });
+  if(playing){
+    playing=false;
+  }else{
+    currentBeat=0
+    var notes = getCurrentChordNotes(i);
+    notes.forEach((n) => {
+      send([0x80, n, 0]);
+    });
+  }
   if (progress) {
     progressChord();
+    progressBeat()
   }
 }
 
@@ -266,10 +322,14 @@ function changeForce(force) {
   if (!loaded) {
     return;
   }
-  var notes = getCurrentChordNotes();
-  notes.forEach((n) => {
-    send([0xa0, n, Math.round(force * 127)]);
-  });
+  if(playing){
+    currentForce=force;
+  }else{
+    var notes = getCurrentChordNotes();
+    notes.forEach((n) => {
+      send([0xa0, n, Math.round(force * 127)]);
+    });
+  }
 }
 
 async function loadSynth() {
@@ -421,7 +481,8 @@ const loadModelToUi = () => {
   document.getElementById("name").value = model.name;
 
   document.getElementById("chords-input").value = model.scenes[scene].chords.join(" ");
-  document.getElementById("rhythm-input").value = model.scenes[scene].rhythm;
+  document.getElementById("rhythm-input").value = model.scenes[scene].rhythm
+        .map(f=>`${f.time}-${f.notes.join("")}${f.gliss?"`":""}${f.ttb?"v":""}`).join(" ");
   document.getElementById("transpose").value = model.scenes[scene].transpose;
   document.getElementById("octave").value = model.scenes[scene].octave;
   document.getElementById("send-midi").checked = model.scenes[scene].sendMidi;
@@ -580,6 +641,40 @@ const deleteScene = () =>{
   showScene()
 }
 
+const bpmChange = ()=>{
+  model.scenes[scene].bpm = parseFloat(document.getElementById("bpm").value)
+}
+
+const exportSongs = ()=>{
+  const keys = getSavedItems();
+  const data = JSON.stringify(keys.map(f=>getFromStorage(f)),null,4);
+  const blob = new Blob([data], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'songs.json';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+const fileInput = document.getElementById('import');
+
+fileInput.addEventListener('change', (event) => {
+  const file = event.target.files[0];
+  const reader = new FileReader();
+
+  reader.onload = (event) => {
+    const contents = JSON.parse(event.target.result);
+    contents.forEach(f=>{if(f.name){setStorage(f.name, f)}})
+    reloadList();
+  };
+
+  reader.readAsText(file);
+});
+
+document.getElementById("export").addEventListener("click", exportSongs);
 document.getElementById("send-midi").addEventListener("change", sendMidiChanged);
 document.getElementById("reset-scene").addEventListener("change", (e)=>{model.scenes[scene].resetOnSceneChange = e.target.checked});
 document.getElementById("play-on-beat").addEventListener("change", (e)=>{model.scenes[scene].playOnBeat = e.target.checked});
@@ -592,6 +687,7 @@ document.getElementById("rhythm-input").addEventListener("input", rhythmInpChang
 document.getElementById("banks").addEventListener("change", e=>bankChange(e.target.value));
 document.getElementById("create-scene").addEventListener("click", createScene)
 document.getElementById("delete-scene").addEventListener("click", deleteScene)
+document.getElementById("bpm").addEventListener("input", bpmChange)
   document.getElementById("ctrl1").addEventListener("click", () => {
   progressChord(true)
   showChord()
@@ -723,6 +819,12 @@ const showScene = () => {
   loadModelToUi();
 }
 
+const showBeat = () => {
+  for (var dom of document.getElementsByClassName("beat-number")) {
+    dom.innerText = currentBeat + 1;
+  }
+}
+
 var commonChordArray = [
   "C G Am F",
   "Am F C G",
@@ -751,7 +853,10 @@ function loadCommonChords() {
 
 var commonRhythmArray = [
   "4-12345'",
-  "1-12345 1-12345 1-12345 1-12345"
+  "1-12345 1-12345 1-12345 1-12345",
+  "8-1 8-2 8-3 8-4 8-5 8-4 8-3 8-2",
+  "8-1 8-2 8-3 8-4",
+  "8-4 8-3 8-2 8-1",
 ]
 
 function loadCommonRhythms() {

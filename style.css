@@ -3,7 +3,10 @@
     outline: 1px solid #f00 !important;
   } */
 html, body { width:100vw;  } /* just to be sure these are full screen*/
-
+body {
+    font-family: "Roboto";
+  }
+  
 #root, #keys{
     display: flex;
     flex-direction: row;
