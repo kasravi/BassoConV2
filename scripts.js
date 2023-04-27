@@ -51,14 +51,16 @@ body.addEventListener('touchmove', function (e) {
 });
 // ------------------------------------ debug ------------------------------------
 window.onerror = (a, b, c, d, e) => {
-  document.getElementById("log").innerText += `
+  const message = `
   message: ${a}
   source: ${b}
   lineno: ${c}
   colno: ${d}
   error: ${e}
+  --------
   `;
-
+  document.getElementById("log").innerText += message;
+  console.log(message);
   return true;
 };
 
@@ -77,8 +79,8 @@ var model = {
   name: "new",
   scenes: [
     {
-      chords: ["C","E", "F"],
-      rhythm: [{time:1,notes:[1,2,3,4,5],ttb:false,gliss:true}],
+      chords: ["C", "E", "F"],
+      rhythm: [{ time: 1, notes: [1, 2, 3, 4, 5], ttb: false, gliss: true }],
       bank: "factory.fxb",
       patch: 0,
       transpose: 0,
@@ -112,18 +114,23 @@ function parseChords() {
 function parseRhythm() {
   var beats = document
     .getElementById("rhythm-input")
-    .value.split(" ")
+    .value.trim().split(" ")
     .map((f) => f.trim())
     .filter((f) => f)
-    .map(f=>{
-      var ttb = false;
-      var gliss = false;
-      if(f.indexOf("v")>-1) ttb=true;
-      if(f.indexOf("`")>-1) gliss=true;
-      f = f.replace(/[^0-9-]/g, "");
-      var t = f.split("-");
-      return {time:parseFloat(t[0]),notes:t[1].split("").map(f=>parseInt(f)), ttb, gliss}
-    });
+    .map(f => {
+      try {
+        var ttb = false;
+        var gliss = false;
+        if (f.indexOf("v") > -1) ttb = true;
+        if (f.indexOf("`") > -1) gliss = true;
+        f = f.replace(/[`v]/g, "");
+        var t = f.split("-");
+        return { time: parseFloat(t[0]), notes: t[1].split("").map(f => parseInt(f)), ttb, gliss }
+      }
+      catch (e) {
+        return;
+      }
+    }).filter(f => f);
   return beats;
 }
 
@@ -243,13 +250,13 @@ function progressChord(back = false) {
   showChord();
 }
 
-const progressBeat = ()=>{
+const progressBeat = () => {
   var len = model.scenes[scene].rhythm.length;
 
   currentBeat++;
 
   currentBeat %= len;
-  
+
   showBeat();
 }
 
@@ -259,41 +266,66 @@ function playChord(force, chordIndex) {
     return;
   }
   var notes = getCurrentChordNotes(chordIndex);
-  if(model.scenes[scene].playOnBeat && model.scenes[scene].bpm>0 && model.scenes[scene].rhythm.length>0){
+  if (model.scenes[scene].playOnBeat && model.scenes[scene].bpm > 0 && model.scenes[scene].rhythm.length > 0) {
     currentForce = force;
-    playBeat(notes, true)
-  }else{
-  notes.forEach((n) => {
-    send([0x90, n, Math.round(force * 127)]);
-  });
-}
+    playBeat(true)
+  } else {
+    notes.forEach((n) => {
+      send([0x90, n, Math.round(force * 127)]);
+    });
+  }
 }
 
-function playBeat(cnotes,start){
-  if(start){
-    playing=true;
+const getBeatTime = () => {
+  const oneBeatTime = 60 / model.scenes[scene].bpm;
+  const { time } = model.scenes[scene].rhythm[currentBeat]
+  const stopTime = 1000 * oneBeatTime * (4 / time);
+  return stopTime;
+}
+
+var timeoutHandle = null;
+var stopRequested = false;
+function playBeat(start) {
+  console.log(start, playing, getCurrentChordNotes())
+  if (start) {
+    stopRequested = false
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+      if (model.scenes[scene].progress) {
+        progressChord();
+        progressBeat()
+      }
+    }
+    if (playing) {
+      return;
+    }
+    playing = true;
   }
-  cnotes.forEach((n) => {
-    send([0x80, n, 0]);
-  });
-  if(playing && JSON.stringify(cnotes) === JSON.stringify(getCurrentChordNotes())){
-    const oneBeatTime = 60/model.scenes[scene].bpm;
-    const {time,notes,ttb,gliss} = model.scenes[scene].rhythm[currentBeat];
-    const notesDict = notes.reduce((a,f)=>{a[f-1]=true;return a},{});
-    let pnotes = cnotes.filter((f,i)=>notesDict[i]);
-    const stopTime = 1000*oneBeatTime*(4/time);
-    if(ttb){
+  const cnotes = getCurrentChordNotes();
+  if (playing) {
+    const { notes, ttb, gliss } = model.scenes[scene].rhythm[currentBeat];
+    const notesDict = notes.reduce((a, f) => { a[f - 1] = true; return a }, {});
+    let pnotes = cnotes.filter((f, i) => notesDict[i]);
+    const stopTime = getBeatTime();
+    if (ttb) {
       pnotes = pnotes.reverse();
     }
-    setTimeout(()=>playBeat(cnotes),stopTime);
-    if(gliss){
-      pnotes.forEach((n,i)=>{
-        setTimeout(()=>send([0x90, n, Math.round(currentForce * 127)]),i*stopTime/10);
-      })
-    }else{
-      pnotes.forEach((n,i)=>{
-        send([0x90, n, Math.round(currentForce * 127)]);
-      })
+    setTimeout(() => {
+      pnotes.forEach((n) => {
+        send([0x80, n, 0]);
+      });
+      playBeat()
+    }, stopTime);
+    if (!stopRequested) {
+      if (gliss) {
+        pnotes.forEach((n, i) => {
+          setTimeout(() => send([0x90, n, Math.round(currentForce * 127)]), i * stopTime / 10);
+        })
+      } else {
+        pnotes.forEach((n, i) => {
+          send([0x90, n, Math.round(currentForce * 127)]);
+        })
+      }
     }
     progressBeat();
   }
@@ -303,28 +335,32 @@ function stopChord(i, progress = true) {
   if (!loaded) {
     return;
   }
-  if(playing){
-    playing=false;
-  }else{
-    currentBeat=0
+  stopRequested = true;
+  if (playing) {
+    timeoutHandle = setTimeout(() => {
+      playing = false;
+    }, getBeatTime())
+  } else {
+    currentBeat = 0
     var notes = getCurrentChordNotes(i);
     notes.forEach((n) => {
       send([0x80, n, 0]);
     });
+    if (progress) {
+      progressChord();
+      progressBeat()
+    }
   }
-  if (progress) {
-    progressChord();
-    progressBeat()
-  }
+
 }
 
 function changeForce(force) {
   if (!loaded) {
     return;
   }
-  if(playing){
-    currentForce=force;
-  }else{
+  if (playing) {
+    currentForce = force;
+  } else {
     var notes = getCurrentChordNotes();
     notes.forEach((n) => {
       send([0xa0, n, Math.round(force * 127)]);
@@ -366,13 +402,13 @@ async function loadSynth() {
 }
 async function bankChange(x) {
   model.scenes[scene].bank = x;
-  if(!obxd) return;
+  if (!obxd) return;
   await obxd.loadBank("presets/" + x);
   loadPatches();
 }
 function patchChange(x) {
   model.scenes[scene].patch = x;
-  if(!obxd) return;
+  if (!obxd) return;
   obxd.selectPatch(x);
 }
 function loadPatches() {
@@ -482,7 +518,7 @@ const loadModelToUi = () => {
 
   document.getElementById("chords-input").value = model.scenes[scene].chords.join(" ");
   document.getElementById("rhythm-input").value = model.scenes[scene].rhythm
-        .map(f=>`${f.time}-${f.notes.join("")}${f.gliss?"`":""}${f.ttb?"v":""}`).join(" ");
+    .map(f => `${f.time}-${f.notes.join("")}${f.gliss ? "`" : ""}${f.ttb ? "v" : ""}`).join(" ");
   document.getElementById("transpose").value = model.scenes[scene].transpose;
   document.getElementById("octave").value = model.scenes[scene].octave;
   document.getElementById("send-midi").checked = model.scenes[scene].sendMidi;
@@ -498,7 +534,7 @@ const loadModelToUi = () => {
   document.getElementById("bpm").value = model.scenes[scene].bpm
   document.getElementById("meter").value = model.scenes[scene].meter
   sendMidiChanged();
-if(model.scenes.length>1) document.getElementById("delete-scene").style.display = "block";
+  if (model.scenes.length > 1) document.getElementById("delete-scene").style.display = "block";
 
 }
 
@@ -614,40 +650,40 @@ const sendMidiChanged = () => {
   }
 }
 
-const nameChange = ()=>{
+const nameChange = () => {
   model.name = document.getElementById("name").value;
 }
 
-const chordsInpChange = ()=>{
+const chordsInpChange = () => {
   model.scenes[scene].chords = parseChords();
 }
 
-const rhythmInpChange = ()=>{
+const rhythmInpChange = () => {
   model.scenes[scene].rhythm = parseRhythm();
 }
 
-const createScene = () =>{
+const createScene = () => {
   var c = JSON.parse(JSON.stringify(model.scenes[scene]));
-  model.scenes.splice(scene+1,0,c);
+  model.scenes.splice(scene + 1, 0, c);
   scene++;
   showScene();
   document.getElementById("delete-scene").style.display = "block";
 }
 
-const deleteScene = () =>{
-  if(model.scenes.length === 1) return;
-  model.scenes.splice(scene,1);
-  if(model.scenes.length === 1) document.getElementById("delete-scene").style.display = "none";
+const deleteScene = () => {
+  if (model.scenes.length === 1) return;
+  model.scenes.splice(scene, 1);
+  if (model.scenes.length === 1) document.getElementById("delete-scene").style.display = "none";
   showScene()
 }
 
-const bpmChange = ()=>{
+const bpmChange = () => {
   model.scenes[scene].bpm = parseFloat(document.getElementById("bpm").value)
 }
 
-const exportSongs = ()=>{
+const exportSongs = () => {
   const keys = getSavedItems();
-  const data = JSON.stringify(keys.map(f=>getFromStorage(f)),null,4);
+  const data = JSON.stringify(keys.map(f => getFromStorage(f)), null, 4);
   const blob = new Blob([data], { type: 'text/plain' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -667,7 +703,7 @@ fileInput.addEventListener('change', (event) => {
 
   reader.onload = (event) => {
     const contents = JSON.parse(event.target.result);
-    contents.forEach(f=>{if(f.name){setStorage(f.name, f)}})
+    contents.forEach(f => { if (f.name) { setStorage(f.name, f) } })
     reloadList();
   };
 
@@ -676,19 +712,19 @@ fileInput.addEventListener('change', (event) => {
 
 document.getElementById("export").addEventListener("click", exportSongs);
 document.getElementById("send-midi").addEventListener("change", sendMidiChanged);
-document.getElementById("reset-scene").addEventListener("change", (e)=>{model.scenes[scene].resetOnSceneChange = e.target.checked});
-document.getElementById("play-on-beat").addEventListener("change", (e)=>{model.scenes[scene].playOnBeat = e.target.checked});
-document.getElementById("progress-check").addEventListener("change", (e)=>{model.scenes[scene].progress = e.target.checked});
+document.getElementById("reset-scene").addEventListener("change", (e) => { model.scenes[scene].resetOnSceneChange = e.target.checked });
+document.getElementById("play-on-beat").addEventListener("change", (e) => { model.scenes[scene].playOnBeat = e.target.checked });
+document.getElementById("progress-check").addEventListener("change", (e) => { model.scenes[scene].progress = e.target.checked });
 document.getElementById("reset").addEventListener("change", reset);
 document.getElementById("name-button").addEventListener("click", save);
 document.getElementById("name").addEventListener("change", nameChange);
 document.getElementById("chords-input").addEventListener("input", chordsInpChange);
 document.getElementById("rhythm-input").addEventListener("input", rhythmInpChange);
-document.getElementById("banks").addEventListener("change", e=>bankChange(e.target.value));
+document.getElementById("banks").addEventListener("change", e => bankChange(e.target.value));
 document.getElementById("create-scene").addEventListener("click", createScene)
 document.getElementById("delete-scene").addEventListener("click", deleteScene)
 document.getElementById("bpm").addEventListener("input", bpmChange)
-  document.getElementById("ctrl1").addEventListener("click", () => {
+document.getElementById("ctrl1").addEventListener("click", () => {
   progressChord(true)
   showChord()
 });
@@ -699,12 +735,12 @@ document.getElementById("ctrl2").addEventListener("click", () => {
 
 document
   .getElementById("patches")
-  .addEventListener("input", e=>patchChange(e.target.value), false);
+  .addEventListener("input", e => patchChange(e.target.value), false);
 document
   .getElementById("chords-input")
   .addEventListener("input", () => showChord());
 
-document.getElementById("log-button").addEventListener("click", ()=>{
+document.getElementById("log-button").addEventListener("click", () => {
   document.getElementById("log").style.display = "block";
 });
 Pressure.set("#play", {
@@ -801,11 +837,11 @@ mc.on("swipeleft swiperight", function (ev) {
 
 mc.on("swipeup swipedown", function (ev) {
   if (ev.type === "swipeup") {
-    if(scene>0) scene--;
+    if (scene > 0) scene--;
   } else {
-    if(scene<model.scenes.length-1) scene++;
+    if (scene < model.scenes.length - 1) scene++;
   };
-  if(model.scenes[scene].resetOnScene){
+  if (model.scenes[scene].resetOnScene) {
     currentChordNumber = 0;
   }
   showChord()

@@ -149,7 +149,7 @@ const staticAssets = [
 ];
 
 const modified = {'/index.html':true,'/scripts.js':true}
-const version = "0.1";
+const version = "0.2";
 
 self.addEventListener('install', async event => {
     //event.waitUntil(self.skipWaiting());
