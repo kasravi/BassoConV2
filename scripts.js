@@ -50,19 +50,19 @@ body.addEventListener('touchmove', function (e) {
   e.preventDefault();
 });
 // ------------------------------------ debug ------------------------------------
-window.onerror = (a, b, c, d, e) => {
-  const message = `
-  message: ${a}
-  source: ${b}
-  lineno: ${c}
-  colno: ${d}
-  error: ${e}
-  --------
-  `;
-  document.getElementById("log").innerText += message;
-  console.log(message);
-  return true;
-};
+// window.onerror = (a, b, c, d, e) => {
+//   const message = `
+//   message: ${a}
+//   source: ${b}
+//   lineno: ${c}
+//   colno: ${d}
+//   error: ${e}
+//   --------
+//   `;
+//   document.getElementById("log").innerText += message;
+//   console.log(message);
+//   return true;
+// };
 
 // ------------------------------------ functionality ------------------------------------
 // --------- Global variables
@@ -665,20 +665,25 @@ const rhythmInpChange = () => {
 const createScene = () => {
   var c = JSON.parse(JSON.stringify(model.scenes[scene]));
   model.scenes.splice(scene + 1, 0, c);
-  scene++;
-  showScene();
-  document.getElementById("delete-scene").style.display = "block";
+  changeScene()
+  
 }
 
 const deleteScene = () => {
   if (model.scenes.length === 1) return;
   model.scenes.splice(scene, 1);
-  if (model.scenes.length === 1) document.getElementById("delete-scene").style.display = "none";
-  showScene()
+  if(scene === 0){
+    changeScene()
+  } else {
+  changeScene(true)
+  }
 }
 
-const bpmChange = () => {
+const paramChange = () => {
   model.scenes[scene].bpm = parseFloat(document.getElementById("bpm").value)
+  model.scenes[scene].transpose = parseFloat(document.getElementById("transpose").value)
+  model.scenes[scene].octave = parseFloat(document.getElementById("octave").value)
+  model.scenes[scene].meter = parseFloat(document.getElementById("meter").value)
 }
 
 const exportSongs = () => {
@@ -721,9 +726,13 @@ document.getElementById("name").addEventListener("change", nameChange);
 document.getElementById("chords-input").addEventListener("input", chordsInpChange);
 document.getElementById("rhythm-input").addEventListener("input", rhythmInpChange);
 document.getElementById("banks").addEventListener("change", e => bankChange(e.target.value));
-document.getElementById("create-scene").addEventListener("click", createScene)
+document.getElementById("new-scene").addEventListener("click", createScene)
+document.getElementById("prev-scene").addEventListener("click", ()=>changeScene(true))
+document.getElementById("next-scene").addEventListener("click", ()=>changeScene())
 document.getElementById("delete-scene").addEventListener("click", deleteScene)
-document.getElementById("bpm").addEventListener("input", bpmChange)
+document.getElementById("bpm").addEventListener("input", paramChange)
+document.getElementById("octave").addEventListener("input", paramChange)
+document.getElementById("transpose").addEventListener("input", paramChange)
 document.getElementById("ctrl1").addEventListener("click", () => {
   progressChord(true)
   showChord()
@@ -835,8 +844,8 @@ mc.on("swipeleft swiperight", function (ev) {
   updateViews();
 });
 
-mc.on("swipeup swipedown", function (ev) {
-  if (ev.type === "swipeup") {
+const changeScene = (up = false) => {
+  if (up) {
     if (scene > 0) scene--;
   } else {
     if (scene < model.scenes.length - 1) scene++;
@@ -844,9 +853,29 @@ mc.on("swipeup swipedown", function (ev) {
   if (model.scenes[scene].resetOnScene) {
     currentChordNumber = 0;
   }
+
+  let nextSceneDom = document.getElementById("next-scene");
+  let prevSceneDom = document.getElementById("prev-scene");
+  let deleteSceneDom = document.getElementById("delete-scene");
+
+  if(scene < model.scenes.length -1){
+    nextSceneDom.disabled = false;
+  }else{
+    nextSceneDom.disabled = true;
+  }
+  if(scene > 0){
+    prevSceneDom.disabled = false;
+  }else{
+    prevSceneDom.disabled = true;
+  }
+  if(model.scenes.length>1){
+    deleteSceneDom.disabled = false;
+  }else{
+    deleteSceneDom.disabled = true;
+  }
   showChord()
   showScene()
-});
+};
 
 const showScene = () => {
   for (var dom of document.getElementsByClassName("scene-number")) {
@@ -920,3 +949,4 @@ reloadList();
 updateViews();
 sendMidiChanged();
 showChord();
+changeScene();

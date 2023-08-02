@@ -53,18 +53,20 @@
     </div>
   </div>
   <div id="build">
-    <p class="scene-number"
-      style="color: rgba(0, 0, 0, 0.1);font-size: 20rem;position: fixed;bottom: 0;right: 0;margin-bottom: -10rem; z-index:-1000">
-    </p>
-    <p class="beat-number"
-      style="color: rgba(256, 256, 256, 0.2);font-size: 15rem;position: fixed;bottom: 0;left: 0;margin-bottom: -7rem; z-index:-1000">
-    </p>
+    <p class="scene-number"></p>
+    <p class="beat-number"></p>
     <div style="display: flex;justify-content: space-between;">
-      <button class="btn btn-secondary" style="margin-top: 1rem; width: 40%;" id="create-scene">
-        New Scene
+      <button class="btn btn-secondary" style="margin-top: 1rem; width: 20%;" id="new-scene">
+        <i class="bi-plus"></i>
       </button>
-      <button class="btn btn-secondary" style="display:none; margin-top: 1rem; width: 40%;" id="delete-scene">
-        Delete Scene
+      <button class="btn btn-secondary" style="margin-top: 1rem; width: 20%;" disabled id="next-scene">
+        <i class="bi bi-arrow-down"></i>
+      </button>
+      <button class="btn btn-secondary" style="margin-top: 1rem; width: 20%;" disabled id="prev-scene">
+        <i class="bi-arrow-up"></i>
+      </button>
+      <button class="btn btn-secondary" style="margin-top: 1rem; width: 20%;" disabled id="delete-scene">
+        <i class="bi-trash"></i>
       </button>
 
     </div>
@@ -83,21 +85,7 @@
         <select class="form-select" id="common-chords" style="width: 10%"></select>
       </div>
       <p style="font-size:10px; margin-top:5px;" id="chords"></p>
-      <div
-        style="display:flex;justify-content:space-between;padding-left: 10px;padding-right: 10px;margin-bottom: 1rem;">
-        <button class="btn btn-primary" style="width: 20%" id="prev">
-          <i class="bi bi-arrow-left"></i>
-        </button>
-        <button class="btn btn-primary" style="width: 20%" id="cur">
-          <i class="bi bi-record-circle"></i>
-        </button>
-        <button class="btn btn-primary" style="width: 20%" id="next">
-          <i class="bi bi-arrow-right"></i>
-        </button>
-        <button class="btn btn-primary" style="width: 20%" id="reset">
-          <i class="bi bi-chevron-bar-left"></i>
-        </button>
-      </div>
+      
     </div>
     <div style="display: flex; margin-bottom: 10px;">
       <input type="text" id="rhythm-input" value="4-12345'" style="width: 90%"></input>
@@ -177,7 +165,21 @@
             Next Patch
           </button>
         </div>
-
+        <div
+        style="display:flex;justify-content:space-between;padding-left: 10px;padding-right: 10px;margin-top: 1rem;">
+        <button class="btn btn-primary" style="width: 20%" id="prev">
+          <i class="bi bi-arrow-left"></i>
+        </button>
+        <button class="btn btn-primary" style="width: 20%" id="cur">
+          <i class="bi bi-record-circle"></i>
+        </button>
+        <button class="btn btn-primary" style="width: 20%" id="next">
+          <i class="bi bi-arrow-right"></i>
+        </button>
+        <button class="btn btn-primary" style="width: 20%" id="reset">
+          <i class="bi bi-chevron-bar-left"></i>
+        </button>
+      </div>
         <!-- <div>
             <input
               type="number"
@@ -206,12 +208,8 @@
     </div>
   </div>
   <div id="perform">
-    <p class="scene-number"
-      style="color: rgba(0, 0, 0, 0.1);font-size: 20rem;position: fixed;bottom: 0;right: 0;margin-bottom: -10rem; z-index:-1000">
-    </p>
-    <p class="beat-number"
-      style="color: rgba(256, 256, 256, 0.2);font-size: 15rem;position: fixed;bottom: 0;left: 0;margin-bottom: -7rem; z-index:-1000">
-    </p>
+    <p class="scene-number"></p>
+    <p class="beat-number"></p>
     <div class="container-fluid p-0" style="height: 100vh">
       <div class="row" style="height: 20%">
         <div id="ctrl1" class="col-6 d-flex flex-column justify-content-center align-items-center"

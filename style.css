@@ -36,3 +36,22 @@ select{
     width: 0;
 }
 
+.scene-number {
+    color: rgba(256, 256, 256, 0.5);
+    font-size: 20rem;
+    position: fixed;
+    bottom: 0;
+    right: 0;
+    margin-bottom: -10rem; 
+    z-index:-1000
+}
+
+.beat-number{
+    color: rgba(256, 256, 256, 0.3);
+    font-size: 15rem;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    margin-bottom: -7rem; 
+    z-index:-1000
+}
