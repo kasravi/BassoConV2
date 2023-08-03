@@ -47,7 +47,7 @@ select{
 }
 
 .beat-number{
-    color: rgba(256, 256, 256, 0.3);
+    color: rgba(256, 256, 256, 0.1);
     font-size: 15rem;
     position: fixed;
     bottom: 0;
@@ -55,3 +55,19 @@ select{
     margin-bottom: -7rem; 
     z-index:-1000
 }
+
+.view {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    pointer-events: none; /* Disable pointer events for hidden views */
+    transition: opacity 0.3s ease; /* Adjust the duration and easing as desired */
+  }
+  
+  .view.active {
+    opacity: 1;
+    pointer-events: auto; /* Enable pointer events for the active view */
+  }

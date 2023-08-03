@@ -72,7 +72,7 @@ var currentChordNumber = 0;
 var currentBeat = 0;
 var playing = false;
 var loaded = false; //synths should load after user touch
-var currentView = 1;
+var currentView = 2;
 var currentForce = 1;
 var scene = 0;
 var model = {
@@ -166,7 +166,7 @@ function getSubarrayWithIndex(arr, index, width) {
     position: result
   };
 }
-function showChord() { // Display the chord both on build page and the perform page
+function showChord() { 
   var chords = model.scenes[scene].chords;
   if (chords.length === 0) {
     return;
@@ -181,8 +181,7 @@ function showChord() { // Display the chord both on build page and the perform p
     resultIndex = result.indexInSubarray;
     position = result.position;
   }
-  var currentChord = chordsDict[chords[currentChordNumber]];
-  document.getElementById("current-chord").innerHTML = currentChord.name;
+  
   var dom = document.getElementById("chords");
   var ht = "";
   chordsToShow
@@ -632,6 +631,20 @@ const loadModelToUi = () => {
   sendMidiChanged();
   if (model.scenes.length > 1) document.getElementById("delete-scene").style.display = "block";
 
+  updatePerformView();
+}
+
+const updatePerformView = () => {
+  document.getElementById("play-container").innerHTML = "";
+  for(let i=0;i<model.scenes.length;i++){
+    document.getElementById("play-container").innerHTML += `
+    <div style="height: ${100/model.scenes.length}%; border: white solid 1px"
+            class="d-flex flex-column justify-content-center align-items-center" id="play-${i}">
+            <p style="font-size: 2rem; " id="current-chord-${i}">${chordsDict[model.scenes[i].chords[0]].name}</p>
+          </div>
+    `
+  }
+  registerPressure();
 }
 
 function loadSavedItem(name) {
@@ -855,22 +868,37 @@ document
 document.getElementById("log-button").addEventListener("click", () => {
   document.getElementById("log").style.display = "block";
 });
-Pressure.set("#play", {
-  start: function (event) {
-    playChord(event.pressure);
-    document.getElementById("play").style.backgroundColor =
-      "rgba(255, 255, 255, " + event.pressure / 10 + ")";
-  },
-  end: function () {
-    stopChord(undefined, model.scenes[scene].progress);
-    document.getElementById("play").style.backgroundColor = "rgba(0, 0, 0, 0)";
-  },
-  change: function (force, event) {
-    changeForce(force);
-    document.getElementById("play").style.backgroundColor =
-      "rgba(255, 255, 255, " + event.pressure / 10 + ")";
-  },
-});
+
+var prevPlayingScene=null;
+const registerPressure = ()=>{
+  for(let i=0;i<model.scenes.length;i++){
+    Pressure.set("#play-"+i, {
+      start: function (event) {
+        if(model.scenes[i].resetOnSceneChange && prevPlayingScene !== i){
+          reset()
+          prevPlayingScene = i;
+        }
+        
+        var currentChord = chordsDict[model.scenes[i].chords[currentChordNumber]];
+        document.getElementById("current-chord-"+i).innerHTML = currentChord.name;
+        document.getElementById("play-"+i).style.backgroundColor =
+          "rgba(255, 255, 255, " + event.pressure / 10 + ")";
+          playChord(event.pressure);
+      },
+      end: function () {
+        stopChord(undefined, model.scenes[scene].progress);
+        document.getElementById("play-"+i).style.backgroundColor = "rgba(0, 0, 0, 0)";
+      },
+      change: function (force, event) {
+        changeForce(force);
+        document.getElementById("play-"+i).style.backgroundColor =
+          "rgba(255, 255, 255, " + event.pressure / 10 + ")";
+      },
+    });
+    preventLongPressMenu([document.getElementById("play-"+i)]);
+  }
+}
+
 
 function absorbEvent_(event) {
   var e = event || window.event;
@@ -889,8 +917,6 @@ function preventLongPressMenu(nodes) {
     nodes[i].ontouchcancel = absorbEvent_;
   }
 }
-
-preventLongPressMenu([document.getElementById("play")]);
 
 const tributeAttributes = {
   autocompleteMode: true,
@@ -933,10 +959,10 @@ function updateViews() {
     document.getElementById("perform"),
   ];
   views.forEach((view, i) => {
-    if (i == currentView) {
-      view.style.display = "block";
+    if (i === currentView) {
+      view.classList.add("active");
     } else {
-      view.style.display = "none";
+      view.classList.remove("active");
     }
   });
 }
@@ -1051,3 +1077,4 @@ updateViews();
 sendMidiChanged();
 showChord();
 changeScene();
+registerPressure();

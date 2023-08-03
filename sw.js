@@ -5,7 +5,6 @@ const STATIC_CACHE_NAME = 'bassocon-pwa-static'
 //Write-Output $staticAssetPaths
 
 const staticAssets = [
-    '/chords-old.js',
 '/chords.js',
 '/index.html',
 '/obxd.html',
@@ -148,7 +147,7 @@ const staticAssets = [
 '/worklet/obxd.wasm.js',
 ];
 
-const modified = {'/index.html':true,'/scripts.js':true}
+const modified = {'/index.html':true,'/scripts.js':true,'/style.css':true,'/chords.js':true}
 const version = "0.2";
 
 self.addEventListener('install', async event => {

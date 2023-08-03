@@ -41,7 +41,7 @@
     <p style="font-size: 100px">LOAD</p>
   </div>
 
-  <div id="list">
+  <div id="list" class="view">
     <div id="songs"></div>
     <div style="display: block;position: fixed;bottom: 0;">
       <p id="log"  style="display: none;"></p>
@@ -52,7 +52,7 @@
       </div>
     </div>
   </div>
-  <div id="build">
+  <div id="build" class="view">
     <p class="scene-number"></p>
     <p class="beat-number"></p>
     <div style="display: flex;justify-content: space-between;">
@@ -211,11 +211,10 @@
 
     </div>
   </div>
-  <div id="perform">
-    <p class="scene-number"></p>
+  <div id="perform" class="view">
     <p class="beat-number"></p>
     <div class="container-fluid p-0" style="height: 100vh">
-      <div class="row" style="height: 20%">
+      <div class="row" style="height: 10%">
         <div id="ctrl1" class="col-6 d-flex flex-column justify-content-center align-items-center"
           style="height: 100%; border: white solid 1px">
           <p>^</p>
@@ -225,11 +224,11 @@
           <p>V</p>
         </div>
       </div>
-      <div class="row" style="height: 80%">
-        <div class="col-12" style="height: 100%">
+      <div class="row" style="height: 90%">
+        <div class="col-12" style="height: 100%" id="play-container">
           <div style="height: 100%; border: white solid 1px"
-            class="d-flex flex-column justify-content-center align-items-center" id="play">
-            <p style="font-size: 5rem; transform: rotate(90deg);" id="current-chord"></p>
+            class="d-flex flex-column justify-content-center align-items-center" id="play-0">
+            <p style="font-size: 2rem; " id="current-chord-0"></p>
           </div>
         </div>
       </div>
