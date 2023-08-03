@@ -309,7 +309,7 @@ export default chordsTypes.flatMap(f=>notes.map(note=>{
     },[]);
 
     var notes = notesArr.map(n=>notesDict[n]+60);
-    notes = [...notes, ...notes.map(f=>f+12), ...notes.map(f=>f+24)].slice(0,5)
+    notes = [...notes, ...notes.map(f=>f+12), ...notes.map(f=>f+24)].sort().slice(0,5)
     return {
         name:note + " " + f.name, 
         abbv:f.abbv.split(",").map(a=>note+a.trim()),

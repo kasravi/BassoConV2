@@ -50,24 +50,24 @@ body.addEventListener('touchmove', function (e) {
   e.preventDefault();
 });
 // ------------------------------------ debug ------------------------------------
-// window.onerror = (a, b, c, d, e) => {
-//   const message = `
-//   message: ${a}
-//   source: ${b}
-//   lineno: ${c}
-//   colno: ${d}
-//   error: ${e}
-//   --------
-//   `;
-//   document.getElementById("log").innerText += message;
-//   console.log(message);
-//   return true;
-// };
+window.onerror = (a, b, c, d, e) => {
+  const message = `
+  message: ${a}
+  source: ${b}
+  lineno: ${c}
+  colno: ${d}
+  error: ${e}
+  --------
+  `;
+  document.getElementById("log").innerText += message;
+  console.log(message);
+  return true;
+};
 
 // ------------------------------------ functionality ------------------------------------
 // --------- Global variables
 var chordsDict = {};
-var sw, obxd, send = () => { };
+var actx, fadeOutNode, obxd, send = () => { };
 var currentChordNumber = 0;
 var currentBeat = 0;
 var playing = false;
@@ -122,8 +122,8 @@ function parseRhythm() {
         var ttb = false;
         var gliss = false;
         if (f.indexOf("v") > -1) ttb = true;
-        if (f.indexOf("`") > -1) gliss = true;
-        f = f.replace(/[`v]/g, "");
+        if (f.indexOf("!") > -1) gliss = true;
+        f = f.replace(/[!v]/g, "");
         var t = f.split("-");
         return { time: parseFloat(t[0]), notes: t[1].split("").map(f => parseInt(f)), ttb, gliss }
       }
@@ -223,16 +223,19 @@ function reset() {
 
 function playPreviousChord() {
   progressChord(true);
-  playChord(1);
+  currentBeat=0;
+  playChord(1,null,true);
 }
 
 function playNextChord() {
   progressChord();
-  playChord(1);
+  currentBeat = 0;
+  playChord(1,null,true);
 }
 
 function playCurrentChord() {
-  playChord(1);
+  currentBeat = 0;
+  playChord(1,null, true);
 }
 
 function progressChord(back = false) {
@@ -247,6 +250,7 @@ function progressChord(back = false) {
 
     currentChordNumber %= len;
   }
+  currentBeat = 0;
   showChord();
 }
 
@@ -261,14 +265,14 @@ const progressBeat = () => {
 }
 
 
-function playChord(force, chordIndex) {
+function playChord(force, chordIndex, overrideProgress) {
   if (!loaded) {
     return;
   }
   var notes = getCurrentChordNotes(chordIndex);
   if (model.scenes[scene].playOnBeat && model.scenes[scene].bpm > 0 && model.scenes[scene].rhythm.length > 0) {
     currentForce = force;
-    playBeat(true)
+    playBeat(true, overrideProgress)
   } else {
     notes.forEach((n) => {
       send([0x90, n, Math.round(force * 127)]);
@@ -285,15 +289,15 @@ const getBeatTime = () => {
 
 var timeoutHandle = null;
 var stopRequested = false;
-function playBeat(start) {
+function playBeat(start, overrideProgress) {
   console.log(start, playing, getCurrentChordNotes())
   if (start) {
     stopRequested = false
     if (timeoutHandle) {
       clearTimeout(timeoutHandle);
-      if (model.scenes[scene].progress) {
+      if (model.scenes[scene].progress && !overrideProgress) {
         progressChord();
-        progressBeat()
+        
       }
     }
     if (playing) {
@@ -319,7 +323,7 @@ function playBeat(start) {
     if (!stopRequested) {
       if (gliss) {
         pnotes.forEach((n, i) => {
-          setTimeout(() => send([0x90, n, Math.round(currentForce * 127)]), i * stopTime / 10);
+          setTimeout(() => send([0x90, n, Math.round(currentForce * 127)]), i * 1000 / 15);//TODO can rolled chord (mistakenly named gliss) timing can be changed
         })
       } else {
         pnotes.forEach((n, i) => {
@@ -367,13 +371,52 @@ function changeForce(force) {
     });
   }
 }
+function createReverb(audioContext, time) {
+  // Create the ConvolverNode for reverb effect
+  const convolverNode = audioContext.createConvolver();
+
+  // Create an AudioBuffer for the impulse response (reverb characteristics)
+  const length = audioContext.sampleRate * time; // Change this to adjust reverb time (2 seconds in this example)
+  const impulse = audioContext.createBuffer(2, length, audioContext.sampleRate);
+  const impulseL = impulse.getChannelData(0);
+  const impulseR = impulse.getChannelData(1);
+
+  // Fill the AudioBuffer with the impulse response data
+  for (let i = 0; i < length; i++) {
+    impulseL[i] = (Math.random() * 20 - 1) * Math.pow(1 - i / length, 2);
+    impulseR[i] = (Math.random() * 20 - 1) * Math.pow(1 - i / length, 2);
+  }
+
+  // Set the AudioBuffer as the ConvolverNode's buffer
+  convolverNode.buffer = impulse;
+
+  // Connect the ConvolverNode to the audioContext's destination
+  convolverNode.connect(audioContext.destination);
+
+  return convolverNode;
+}
 
 async function loadSynth() {
-  let actx = new AudioContext();
-
+  actx = new AudioContext();
   await WAM.OBXD.importScripts(actx);
+  
   obxd = new WAM.OBXD(actx);
-  obxd.connect(actx.destination);
+
+  // Master gain node to control overall volume
+  const masterGain = actx.createGain();
+  masterGain.gain.value = 1; // Adjust the overall volume (0 to 1)
+
+  // Create a gain node for fading out the sound after the note ends
+  fadeOutNode = actx.createGain();
+  fadeOutNode.gain.setValueAtTime(1, actx.currentTime);
+  fadeOutNode.gain.linearRampToValueAtTime(0, actx.currentTime + 0.05); // Adjust the fade-out duration as needed
+
+
+  obxd.connect(masterGain);
+
+    // Connect the master gain node to the audioContext destination
+  masterGain.connect(actx.destination);
+  
 
   let gui = await obxd.loadGUI("skin");
   if (document.getElementById("controller").style.display !== "none") {
@@ -395,21 +438,69 @@ async function loadSynth() {
     midikeys.keyDown = (note, name) => obxd.onMidi([0x90, note, 100]);
     midikeys.keyUp = (note, name) => obxd.onMidi([0x80, note, 100]);
   }
-  //await obxd.loadBank("presets/factory.fxb");Designer/Kujashi-OBXD-Bank.fxb
-  await obxd.loadBank("presets/Designer/Kujashi-OBXD-Bank.fxb");
-  loadPatches();
-  obxd.selectPatch(31);
 }
+
+// Function to create or remove the delay (reverb) effect
+function putReverb() {
+  if (actx && obxd) {
+    if (model.scenes[scene].reverb > 0) {
+      // Create the reverb effect
+      const reverbNode = createReverb(actx, model.scenes[scene].reverb);
+
+      // Disconnect the oscillator from the master gain node
+      obxd.disconnect();
+      fadeOutNode.disconnect();
+
+      // Connect the oscillator to the reverbNode
+      obxd.connect(reverbNode);
+
+      // Connect the reverbNode to its own gain node
+      const reverbGain = actx.createGain();
+      reverbNode.connect(reverbGain);
+      reverbGain.connect(actx.destination);
+
+      // Connect the fadeOutNode to the master gain node
+      fadeOutNode.connect(actx.destination);
+    } else {
+      // Turn off the reverb effect
+
+      // Disconnect the reverb node and reset connections
+      obxd.disconnect();
+      fadeOutNode.disconnect();
+
+      // Reconnect the oscillator directly to the master gain node
+      obxd.connect(actx.destination);
+
+      // Connect the fadeOutNode to the master gain node
+      fadeOutNode.connect(actx.destination);
+    }
+  }
+}
+
 async function bankChange(x) {
-  model.scenes[scene].bank = x;
   if (!obxd) return;
-  await obxd.loadBank("presets/" + x);
+  if(!x && !model.scenes[scene].bank){
+    await obxd.loadBank("presets/Designer/Kujashi-OBXD-Bank.fxb");
+  }else if (x){
+    await obxd.loadBank("presets/" + x);
+    model.scenes[scene].bank = x;
+  }else if (model.scenes[scene].bank){
+    await obxd.loadBank("presets/" + model.scenes[scene].bank);
+  }
+  
   loadPatches();
 }
 function patchChange(x) {
   model.scenes[scene].patch = x;
   if (!obxd) return;
-  obxd.selectPatch(x);
+  if(!x && !model.scenes[scene].patch ){
+    obxd.selectPatch(31);
+  }else if(x){
+    obxd.selectPatch(x);
+    model.scenes[scene].patch = x;
+  }else if(model.scenes[scene].patch ){
+    obxd.selectPatch(model.scenes[scene].patch );
+  }
 }
 function loadPatches() {
   var array = obxd.patches;
@@ -428,15 +519,19 @@ var wait = t => new Promise(r => setTimeout(r, t));
 
 async function load() {
   try {
+    
+    loadSavedItem();
+    reloadList();
     await loadSynth();
     var el = document.getElementById("load");
     el.style.setProperty("display", "none", "important");
     loaded = true;
-    loadSavedItem();
-    reloadList();
+    await bankChange();
+    patchChange();
+    putReverb();
     //console.log((a,b)=>obxd.onMidi([0xB0, a, b]))
   } catch (e) {
-    alert(e);
+    throw e//alert(e);
   }
 }
 
@@ -518,7 +613,7 @@ const loadModelToUi = () => {
 
   document.getElementById("chords-input").value = model.scenes[scene].chords.join(" ");
   document.getElementById("rhythm-input").value = model.scenes[scene].rhythm
-    .map(f => `${f.time}-${f.notes.join("")}${f.gliss ? "`" : ""}${f.ttb ? "v" : ""}`).join(" ");
+    .map(f => `${f.time}-${f.notes.join("")}${f.gliss ? "!" : ""}${f.ttb ? "v" : ""}`).join(" ");
   document.getElementById("transpose").value = model.scenes[scene].transpose;
   document.getElementById("octave").value = model.scenes[scene].octave;
   document.getElementById("send-midi").checked = model.scenes[scene].sendMidi;
@@ -533,6 +628,7 @@ const loadModelToUi = () => {
   document.getElementById("reset-scene").checked = model.scenes[scene].resetOnSceneChange
   document.getElementById("bpm").value = model.scenes[scene].bpm
   document.getElementById("meter").value = model.scenes[scene].meter
+  document.getElementById("reverb").value = model.scenes[scene].reverb
   sendMidiChanged();
   if (model.scenes.length > 1) document.getElementById("delete-scene").style.display = "block";
 
@@ -686,6 +782,11 @@ const paramChange = () => {
   model.scenes[scene].meter = parseFloat(document.getElementById("meter").value)
 }
 
+const reverbChanged = async () =>{
+  model.scenes[scene].reverb = parseFloat(document.getElementById("reverb").value);
+  putReverb();
+}
+
 const exportSongs = () => {
   const keys = getSavedItems();
   const data = JSON.stringify(keys.map(f => getFromStorage(f)), null, 4);
@@ -720,7 +821,7 @@ document.getElementById("send-midi").addEventListener("change", sendMidiChanged)
 document.getElementById("reset-scene").addEventListener("change", (e) => { model.scenes[scene].resetOnSceneChange = e.target.checked });
 document.getElementById("play-on-beat").addEventListener("change", (e) => { model.scenes[scene].playOnBeat = e.target.checked });
 document.getElementById("progress-check").addEventListener("change", (e) => { model.scenes[scene].progress = e.target.checked });
-document.getElementById("reset").addEventListener("change", reset);
+document.getElementById("reset").addEventListener("click", reset);
 document.getElementById("name-button").addEventListener("click", save);
 document.getElementById("name").addEventListener("change", nameChange);
 document.getElementById("chords-input").addEventListener("input", chordsInpChange);
@@ -733,6 +834,8 @@ document.getElementById("delete-scene").addEventListener("click", deleteScene)
 document.getElementById("bpm").addEventListener("input", paramChange)
 document.getElementById("octave").addEventListener("input", paramChange)
 document.getElementById("transpose").addEventListener("input", paramChange)
+document.getElementById("meter").addEventListener("input", paramChange)
+document.getElementById("reverb").addEventListener("input", reverbChanged)
 document.getElementById("ctrl1").addEventListener("click", () => {
   progressChord(true)
   showChord()
@@ -917,7 +1020,7 @@ function loadCommonChords() {
 }
 
 var commonRhythmArray = [
-  "4-12345'",
+  "4-12345! 4-12345!v",
   "1-12345 1-12345 1-12345 1-12345",
   "8-1 8-2 8-3 8-4 8-5 8-4 8-3 8-2",
   "8-1 8-2 8-3 8-4",
@@ -925,19 +1028,17 @@ var commonRhythmArray = [
 ]
 
 function loadCommonRhythms() {
-  var cl = document.getElementById("common-rhythms");
-  cl.innerHTML = "";
+  document.getElementById("common-rhythms").innerHTML = "";
   for (var i = 0; i < commonRhythmArray.length; i++) {
     const option = document.createElement("option");
     option.value = commonRhythmArray[i];
     option.text = i + ": " + commonRhythmArray[i];
 
-    cl.appendChild(option);
+    document.getElementById("common-rhythms").appendChild(option);
 
   }
-  cl.addEventListener('change', () => {
-    var val = document.getElementById("common-rhythms").value;
-    document.getElementById("rhythm-input").value = val;
+  document.getElementById("common-rhythms").addEventListener('change', (e) => {
+    document.getElementById("rhythm-input").value = e.target.value;
     rhythmInpChange()
   })
 }
