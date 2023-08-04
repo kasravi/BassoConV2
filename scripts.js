@@ -50,24 +50,24 @@ body.addEventListener('touchmove', function (e) {
   e.preventDefault();
 });
 // ------------------------------------ debug ------------------------------------
-window.onerror = (a, b, c, d, e) => {
-  const message = `
-  message: ${a}
-  source: ${b}
-  lineno: ${c}
-  colno: ${d}
-  error: ${e}
-  --------
-  `;
-  document.getElementById("log").innerText += message;
-  console.log(message);
-  return true;
-};
+// window.onerror = (a, b, c, d, e) => {
+//   const message = `
+//   message: ${a}
+//   source: ${b}
+//   lineno: ${c}
+//   colno: ${d}
+//   error: ${e}
+//   --------
+//   `;
+//   document.getElementById("log").innerText += message;
+//   console.log(message);
+//   return true;
+// };
 
 // ------------------------------------ functionality ------------------------------------
 // --------- Global variables
 var chordsDict = {};
-var actx, fadeOutNode, obxd, send = () => { };
+var actx, fadeOutNode, obxd, samplePlayer,samples, send = () => { };
 var currentChordNumber = 0;
 var currentBeat = 0;
 var playing = false;
@@ -166,7 +166,7 @@ function getSubarrayWithIndex(arr, index, width) {
     position: result
   };
 }
-function showChord() { 
+function showChord() {
   var chords = model.scenes[scene].chords;
   if (chords.length === 0) {
     return;
@@ -181,7 +181,7 @@ function showChord() {
     resultIndex = result.indexInSubarray;
     position = result.position;
   }
-  
+
   var dom = document.getElementById("chords");
   var ht = "";
   chordsToShow
@@ -222,19 +222,19 @@ function reset() {
 
 function playPreviousChord() {
   progressChord(true);
-  currentBeat=0;
-  playChord(1,null,true);
+  currentBeat = 0;
+  playChord(1, null, true);
 }
 
 function playNextChord() {
   progressChord();
   currentBeat = 0;
-  playChord(1,null,true);
+  playChord(1, null, true);
 }
 
 function playCurrentChord() {
   currentBeat = 0;
-  playChord(1,null, true);
+  playChord(1, null, true);
 }
 
 function progressChord(back = false) {
@@ -296,7 +296,7 @@ function playBeat(start, overrideProgress) {
       clearTimeout(timeoutHandle);
       if (model.scenes[scene].progress && !overrideProgress) {
         progressChord();
-        
+
       }
     }
     if (playing) {
@@ -395,10 +395,43 @@ function createReverb(audioContext, time) {
   return convolverNode;
 }
 
+const sampleChanged = (val)=>{
+  samplePlayer = samples[val];
+  model.scenes[scene].sample = val;
+}
+
+function loadSamples() {
+  return new Promise((resolve, reject) => {
+    samples = SampleLibrary.load({
+      instruments: ['piano', 'guitar-acoustic', 'guitar-electric', 'guitar-nylon', 'xylophone'],
+      baseUrl: "samples/"
+    })
+    Tone.Buffer.on('load', function () {
+
+      // loop through instruments and set release, connect to master output
+      for (var property in samples) {
+        if (samples.hasOwnProperty(property)) {
+          console.log(samples[property])
+          samples[property].release = .5;
+          samples[property].toMaster();
+        }
+      }
+
+      samplePlayer = samples[model.scenes[scene].sample||'piano'];
+      document.getElementById("select-instrumnets").addEventListener('change', function (v) {
+        sampleChanged(v.target.value);
+      })
+      resolve();
+    })
+    Tone.Buffer.on('error', function () {
+      reject("Failed loading samples");
+    })
+  })
+}
 async function loadSynth() {
   actx = new AudioContext();
   await WAM.OBXD.importScripts(actx);
-  
+
   obxd = new WAM.OBXD(actx);
 
   // Master gain node to control overall volume
@@ -413,9 +446,9 @@ async function loadSynth() {
 
   obxd.connect(masterGain);
 
-    // Connect the master gain node to the audioContext destination
+  // Connect the master gain node to the audioContext destination
   masterGain.connect(actx.destination);
-  
+
 
   let gui = await obxd.loadGUI("skin");
   if (document.getElementById("controller").style.display !== "none") {
@@ -478,27 +511,27 @@ function putReverb() {
 
 async function bankChange(x) {
   if (!obxd) return;
-  if(!x && !model.scenes[scene].bank){
+  if (!x && !model.scenes[scene].bank) {
     await obxd.loadBank("presets/Designer/Kujashi-OBXD-Bank.fxb");
-  }else if (x){
+  } else if (x) {
     await obxd.loadBank("presets/" + x);
     model.scenes[scene].bank = x;
-  }else if (model.scenes[scene].bank){
+  } else if (model.scenes[scene].bank) {
     await obxd.loadBank("presets/" + model.scenes[scene].bank);
   }
-  
+
   loadPatches();
 }
 function patchChange(x) {
   model.scenes[scene].patch = x;
   if (!obxd) return;
-  if(!x && !model.scenes[scene].patch ){
+  if (!x && !model.scenes[scene].patch) {
     obxd.selectPatch(31);
-  }else if(x){
+  } else if (x) {
     obxd.selectPatch(x);
     model.scenes[scene].patch = x;
-  }else if(model.scenes[scene].patch ){
-    obxd.selectPatch(model.scenes[scene].patch );
+  } else if (model.scenes[scene].patch) {
+    obxd.selectPatch(model.scenes[scene].patch);
   }
 }
 function loadPatches() {
@@ -518,12 +551,13 @@ var wait = t => new Promise(r => setTimeout(r, t));
 
 async function load() {
   try {
-    
+
     loadSavedItem();
     reloadList();
-    changeScene(null,0);
+    changeScene(null, 0);
     registerPressure();
     await loadSynth();
+    await loadSamples();
     var el = document.getElementById("load");
     el.style.setProperty("display", "none", "important");
     loaded = true;
@@ -638,9 +672,9 @@ const loadModelToUi = () => {
 
 const updatePerformView = () => {
   document.getElementById("play-container").innerHTML = "";
-  for(let i=0;i<model.scenes.length;i++){
+  for (let i = 0; i < model.scenes.length; i++) {
     document.getElementById("play-container").innerHTML += `
-    <div style="height: ${100/model.scenes.length}%; border: white solid 1px"
+    <div style="height: ${100 / model.scenes.length}%; border: white solid 1px"
             class="d-flex flex-column justify-content-center align-items-center" id="play-${i}">
             <p style="font-size: 2rem; " id="current-chord-${i}">${chordsDict[model.scenes[i].chords[0]].name}</p>
           </div>
@@ -755,10 +789,17 @@ const synthChanged = () => {
       };
     });
 
-  } else if (model.scenes[scene].synth === "sf"){
-    const context = new AudioContext();
-    const marimba = new Soundfont(context, { instrument: "marimba" });
-    send = (message) => {marimba.start({ note: 60, velocity: 80 });}
+  } else if (model.scenes[scene].synth === "sf") {
+    send = (message) => {
+      let [state, note, vel] = message;
+      if (state = 0x90) {
+        samplePlayer.triggerAttack(Tone.Frequency(note, "midi").toNote());
+      } else if (state = 0x80) {
+        samplePlayer.triggerRelease(Tone.Frequency(note, "midi").toNote());
+      }
+    }
+    document.getElementById("internal-synth").style.display = 'none';
+    document.getElementById("instruments").style.display = 'block';
   } else {
     document.getElementById("internal-synth").style.display = 'block';
     send = (message) => { obxd.onMidi(message) };
@@ -781,16 +822,16 @@ const createScene = () => {
   var c = JSON.parse(JSON.stringify(model.scenes[scene]));
   model.scenes.splice(scene + 1, 0, c);
   changeScene()
-  
+
 }
 
 const deleteScene = () => {
   if (model.scenes.length === 1) return;
   model.scenes.splice(scene, 1);
-  if(scene === 0){
+  if (scene === 0) {
     changeScene()
   } else {
-  changeScene(true)
+    changeScene(true)
   }
 }
 
@@ -801,7 +842,7 @@ const paramChange = () => {
   model.scenes[scene].meter = parseFloat(document.getElementById("meter").value)
 }
 
-const reverbChanged = async () =>{
+const reverbChanged = async () => {
   model.scenes[scene].reverb = parseFloat(document.getElementById("reverb").value);
   putReverb();
 }
@@ -847,8 +888,8 @@ document.getElementById("chords-input").addEventListener("input", chordsInpChang
 document.getElementById("rhythm-input").addEventListener("input", rhythmInpChange);
 document.getElementById("banks").addEventListener("change", e => bankChange(e.target.value));
 document.getElementById("new-scene").addEventListener("click", createScene)
-document.getElementById("prev-scene").addEventListener("click", ()=>changeScene(true))
-document.getElementById("next-scene").addEventListener("click", ()=>changeScene())
+document.getElementById("prev-scene").addEventListener("click", () => changeScene(true))
+document.getElementById("next-scene").addEventListener("click", () => changeScene())
 document.getElementById("delete-scene").addEventListener("click", deleteScene)
 document.getElementById("bpm").addEventListener("input", paramChange)
 document.getElementById("octave").addEventListener("input", paramChange)
@@ -875,34 +916,34 @@ document.getElementById("log-button").addEventListener("click", () => {
   document.getElementById("log").style.display = "block";
 });
 
-var prevPlayingScene=null;
-const registerPressure = ()=>{
-  for(let i=0;i<model.scenes.length;i++){
-    Pressure.set("#play-"+i, {
+var prevPlayingScene = null;
+const registerPressure = () => {
+  for (let i = 0; i < model.scenes.length; i++) {
+    Pressure.set("#play-" + i, {
       start: function (event) {
-        if(model.scenes[i].resetOnSceneChange && prevPlayingScene !== i){
+        if (model.scenes[i].resetOnSceneChange && prevPlayingScene !== i) {
           changeScene(null, i)
           reset()
           prevPlayingScene = i;
         }
-        
+
         var currentChord = chordsDict[model.scenes[i].chords[currentChordNumber]];
-        document.getElementById("current-chord-"+i).innerHTML = currentChord.name;
-        document.getElementById("play-"+i).style.backgroundColor =
+        document.getElementById("current-chord-" + i).innerHTML = currentChord.name;
+        document.getElementById("play-" + i).style.backgroundColor =
           "rgba(255, 255, 255, " + event.pressure / 10 + ")";
-          playChord(event.pressure);
+        playChord(event.pressure);
       },
       end: function () {
         stopChord(undefined, model.scenes[scene].progress);
-        document.getElementById("play-"+i).style.backgroundColor = "rgba(0, 0, 0, 0)";
+        document.getElementById("play-" + i).style.backgroundColor = "rgba(0, 0, 0, 0)";
       },
       change: function (force, event) {
         changeForce(force);
-        document.getElementById("play-"+i).style.backgroundColor =
+        document.getElementById("play-" + i).style.backgroundColor =
           "rgba(255, 255, 255, " + event.pressure / 10 + ")";
       },
     });
-    preventLongPressMenu([document.getElementById("play-"+i)]);
+    preventLongPressMenu([document.getElementById("play-" + i)]);
   }
 }
 
@@ -981,10 +1022,10 @@ mc.on("swipeleft swiperight", function (ev) {
 });
 
 const changeScene = (up = false, sceneNumber) => {
-  if(sceneNumber!==undefined){
+  if (sceneNumber !== undefined) {
     scene = sceneNumber
   }
-  else{
+  else {
     if (up) {
       if (scene > 0) scene--;
     } else {
@@ -999,19 +1040,19 @@ const changeScene = (up = false, sceneNumber) => {
   let prevSceneDom = document.getElementById("prev-scene");
   let deleteSceneDom = document.getElementById("delete-scene");
 
-  if(scene < model.scenes.length -1){
+  if (scene < model.scenes.length - 1) {
     nextSceneDom.disabled = false;
-  }else{
+  } else {
     nextSceneDom.disabled = true;
   }
-  if(scene > 0){
+  if (scene > 0) {
     prevSceneDom.disabled = false;
-  }else{
+  } else {
     prevSceneDom.disabled = true;
   }
-  if(model.scenes.length>1){
+  if (model.scenes.length > 1) {
     deleteSceneDom.disabled = false;
-  }else{
+  } else {
     deleteSceneDom.disabled = true;
   }
   showChord()
