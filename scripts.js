@@ -72,7 +72,7 @@ var currentChordNumber = 0;
 var currentBeat = 0;
 var playing = false;
 var loaded = false; //synths should load after user touch
-var currentView = 2;
+var currentView = 1;
 var currentForce = 1;
 var scene = 0;
 var model = {
@@ -85,7 +85,7 @@ var model = {
       patch: 0,
       transpose: 0,
       octave: 0,
-      sendMidi: false,
+      synth: "obxd",
       progress: true,
       playOnBeat: false,
       resetOnSceneChange: true,
@@ -521,6 +521,8 @@ async function load() {
     
     loadSavedItem();
     reloadList();
+    changeScene(null,0);
+    registerPressure();
     await loadSynth();
     var el = document.getElementById("load");
     el.style.setProperty("display", "none", "important");
@@ -615,7 +617,7 @@ const loadModelToUi = () => {
     .map(f => `${f.time}-${f.notes.join("")}${f.gliss ? "!" : ""}${f.ttb ? "v" : ""}`).join(" ");
   document.getElementById("transpose").value = model.scenes[scene].transpose;
   document.getElementById("octave").value = model.scenes[scene].octave;
-  document.getElementById("send-midi").checked = model.scenes[scene].sendMidi;
+  document.getElementById("synth").value = model.scenes[scene].synth;
   document.getElementById("progress-check").checked = model.scenes[scene].progress;
   showChord();
   document.getElementById("banks").value = model.scenes[scene].bank;
@@ -628,7 +630,7 @@ const loadModelToUi = () => {
   document.getElementById("bpm").value = model.scenes[scene].bpm
   document.getElementById("meter").value = model.scenes[scene].meter
   document.getElementById("reverb").value = model.scenes[scene].reverb
-  sendMidiChanged();
+  synthChanged();
   if (model.scenes.length > 1) document.getElementById("delete-scene").style.display = "block";
 
   updatePerformView();
@@ -732,17 +734,17 @@ const connectMidi = (midiAccess) => {
   // Check if an output is available
   if (!output) {
     alert("No MIDI output devices are available.");
-    document.getElementById("send-midi").checked = false;
-    sendMidiChanged();
+    document.getElementById("synth") = "obxd";
+    synthChanged();
     return;
   }
 
   send = (message) => { output.send(message) };
 }
 
-const sendMidiChanged = () => {
-  model.scenes[scene].sendMidi = document.getElementById("send-midi").checked;
-  if (model.scenes[scene].sendMidi) {
+const synthChanged = () => {
+  model.scenes[scene].synth = document.getElementById("synth").value;
+  if (model.scenes[scene].synth === "midi") {
     document.getElementById("internal-synth").style.display = 'none';
 
     navigator.requestMIDIAccess().then(function (midiAccess) {
@@ -753,6 +755,10 @@ const sendMidiChanged = () => {
       };
     });
 
+  } else if (model.scenes[scene].synth === "sf"){
+    const context = new AudioContext();
+    const marimba = new Soundfont(context, { instrument: "marimba" });
+    send = (message) => {marimba.start({ note: 60, velocity: 80 });}
   } else {
     document.getElementById("internal-synth").style.display = 'block';
     send = (message) => { obxd.onMidi(message) };
@@ -830,7 +836,7 @@ fileInput.addEventListener('change', (event) => {
 });
 
 document.getElementById("export").addEventListener("click", exportSongs);
-document.getElementById("send-midi").addEventListener("change", sendMidiChanged);
+document.getElementById("synth").addEventListener("change", synthChanged);
 document.getElementById("reset-scene").addEventListener("change", (e) => { model.scenes[scene].resetOnSceneChange = e.target.checked });
 document.getElementById("play-on-beat").addEventListener("change", (e) => { model.scenes[scene].playOnBeat = e.target.checked });
 document.getElementById("progress-check").addEventListener("change", (e) => { model.scenes[scene].progress = e.target.checked });
@@ -875,6 +881,7 @@ const registerPressure = ()=>{
     Pressure.set("#play-"+i, {
       start: function (event) {
         if(model.scenes[i].resetOnSceneChange && prevPlayingScene !== i){
+          changeScene(null, i)
           reset()
           prevPlayingScene = i;
         }
@@ -973,14 +980,19 @@ mc.on("swipeleft swiperight", function (ev) {
   updateViews();
 });
 
-const changeScene = (up = false) => {
-  if (up) {
-    if (scene > 0) scene--;
-  } else {
-    if (scene < model.scenes.length - 1) scene++;
-  };
-  if (model.scenes[scene].resetOnScene) {
-    currentChordNumber = 0;
+const changeScene = (up = false, sceneNumber) => {
+  if(sceneNumber!==undefined){
+    scene = sceneNumber
+  }
+  else{
+    if (up) {
+      if (scene > 0) scene--;
+    } else {
+      if (scene < model.scenes.length - 1) scene++;
+    };
+    if (model.scenes[scene].resetOnScene) {
+      currentChordNumber = 0;
+    }
   }
 
   let nextSceneDom = document.getElementById("next-scene");
@@ -1074,7 +1086,6 @@ loadCommonRhythms();
 showScene();
 reloadList();
 updateViews();
-sendMidiChanged();
+synthChanged();
 showChord();
-changeScene();
-registerPressure();
+
