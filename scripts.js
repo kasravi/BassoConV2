@@ -82,6 +82,8 @@ var model = {
       chords: ["C", "E", "F"],
       rhythm: [{ time: 1, notes: [1, 2, 3, 4, 5], ttb: false, gliss: true }],
       bank: "factory.fxb",
+      sample:"piano",
+      effects:[0,0,0,0,0,0],
       patch: 0,
       transpose: 0,
       octave: 0,
@@ -370,36 +372,14 @@ function changeForce(force) {
     });
   }
 }
-function createReverb(audioContext, time) {
-  // Create the ConvolverNode for reverb effect
-  const convolverNode = audioContext.createConvolver();
 
-  // Create an AudioBuffer for the impulse response (reverb characteristics)
-  const length = audioContext.sampleRate * time; // Change this to adjust reverb time (2 seconds in this example)
-  const impulse = audioContext.createBuffer(2, length, audioContext.sampleRate);
-  const impulseL = impulse.getChannelData(0);
-  const impulseR = impulse.getChannelData(1);
-
-  // Fill the AudioBuffer with the impulse response data
-  for (let i = 0; i < length; i++) {
-    impulseL[i] = (Math.random() * 20 - 1) * Math.pow(1 - i / length, 2);
-    impulseR[i] = (Math.random() * 20 - 1) * Math.pow(1 - i / length, 2);
-  }
-
-  // Set the AudioBuffer as the ConvolverNode's buffer
-  convolverNode.buffer = impulse;
-
-  // Connect the ConvolverNode to the audioContext's destination
-  convolverNode.connect(audioContext.destination);
-
-  return convolverNode;
-}
 
 const sampleChanged = (val)=>{
   samplePlayer = samples[val];
+  samplePlayer.connect(effects.tone.overdrive.getInput());
   model.scenes[scene].sample = val;
 }
-
+var effects = {obxd:{overdrive:null, delay:null, reverb:null, volume:null, cabinet:null},tone:{overdrive:null, delay:null, reverb:null, volume:null, cabinet:null}}
 function loadSamples() {
   return new Promise((resolve, reject) => {
     samples = SampleLibrary.load({
@@ -411,13 +391,43 @@ function loadSamples() {
       // loop through instruments and set release, connect to master output
       for (var property in samples) {
         if (samples.hasOwnProperty(property)) {
-          console.log(samples[property])
           samples[property].release = .5;
-          samples[property].toMaster();
+          //samples[property].toMaster();
         }
       }
 
-      samplePlayer = samples[model.scenes[scene].sample||'piano'];
+      Tone.getContext(context=>{
+        const stage = new pb.Stage(context);
+        const ctx = stage.getContext();
+        const board = new pb.Board(ctx);
+        stage.setBoard(board);
+
+        // Create the effects
+        effects.tone.overdrive = new pb.stomp.Overdrive(ctx);
+        effects.tone.reverb = new pb.stomp.Reverb(ctx);
+        effects.tone.volume = new pb.stomp.Volume(ctx);
+        effects.tone.cabinet = new pb.stomp.Cabinet(ctx);
+        effects.tone.delay = new pb.stomp.Delay(ctx);
+
+        // Add the effects to the board
+        board.addPedals([effects.tone.overdrive, effects.tone.delay, effects.tone.reverb, effects.tone.volume, effects.tone.cabinet]);
+
+        // Set the default effect parameters (you can adjust them as needed)
+        effects.tone.overdrive.setLevel(1);
+        effects.tone.overdrive.setDrive(0);
+        effects.tone.overdrive.setTone(0);
+        effects.tone.reverb.setLevel(0);
+        effects.tone.delay.setDelayTimer(0);
+        effects.tone.delay.setFeedbackGain(0);
+        effects.tone.delay.setLevel(0);
+        effects.tone.volume.setLevel(1);
+
+        samplePlayer = samples[model.scenes[scene].sample||'piano'];
+        samplePlayer.connect(effects.tone.overdrive.getInput());
+        effects.tone.cabinet.getOutput().connect(context.destination);
+      })
+      
+
       document.getElementById("select-instrumnets").addEventListener('change', function (v) {
         sampleChanged(v.target.value);
       })
@@ -437,12 +447,6 @@ async function loadSynth() {
   // Master gain node to control overall volume
   const masterGain = actx.createGain();
   masterGain.gain.value = 1; // Adjust the overall volume (0 to 1)
-
-  // Create a gain node for fading out the sound after the note ends
-  fadeOutNode = actx.createGain();
-  fadeOutNode.gain.setValueAtTime(1, actx.currentTime);
-  fadeOutNode.gain.linearRampToValueAtTime(0, actx.currentTime + 0.05); // Adjust the fade-out duration as needed
-
 
   obxd.connect(masterGain);
 
@@ -470,43 +474,54 @@ async function loadSynth() {
     midikeys.keyDown = (note, name) => obxd.onMidi([0x90, note, 100]);
     midikeys.keyUp = (note, name) => obxd.onMidi([0x80, note, 100]);
   }
+
+  const stage = new pb.Stage(actx);
+  const ctx = stage.getContext();
+  const board = new pb.Board(ctx);
+  stage.setBoard(board);
+
+  // Create the effects
+  effects.obxd.overdrive = new pb.stomp.Overdrive(ctx);
+  effects.obxd.reverb = new pb.stomp.Reverb(ctx);
+  effects.obxd.volume = new pb.stomp.Volume(ctx);
+  effects.obxd.cabinet = new pb.stomp.Cabinet(ctx);
+  effects.obxd.delay = new pb.stomp.Delay(ctx);
+
+  // Add the effects to the board
+  board.addPedals([effects.obxd.overdrive, effects.obxd.delay, effects.obxd.reverb, effects.obxd.volume, effects.obxd.cabinet]);
+
+  // Set the default effect parameters (you can adjust them as needed)
+  effects.obxd.volume.setLevel(1);
+  effects.obxd.overdrive.setLevel(1);
+  effects.obxd.overdrive.setDrive(0);
+  effects.obxd.overdrive.setTone(0);
+  effects.obxd.reverb.setLevel(0);
+  effects.obxd.delay.setDelayTimer(0);
+  effects.obxd.delay.setFeedbackGain(0);
+  effects.obxd.delay.setLevel(0);
+
+  // Connect the OBXD to the first effect (Overdrive)
+  obxd.connect(effects.obxd.overdrive.getInput());
+  // Connect the last effect (Cabinet) to the master gain node
+  effects.obxd.cabinet.getOutput().connect(masterGain);
 }
 
-// Function to create or remove the delay (reverb) effect
-function putReverb() {
-  if (actx && obxd) {
-    if (model.scenes[scene].reverb > 0) {
-      // Create the reverb effect
-      const reverbNode = createReverb(actx, model.scenes[scene].reverb);
+const effectFunc = (key)=>{
+  return {
+    0:val => effects[model.scenes[scene].synth].overdrive.setDrive(val),
+    1:val => effects[model.scenes[scene].synth].overdrive.setTone(val),
+    2:val => effects[model.scenes[scene].synth].reverb.setLevel(val),
+    3:val => effects[model.scenes[scene].synth].delay.setDelayTimer(val*0.6),
+    4:val => effects[model.scenes[scene].synth].delay.setFeedbackGain(val),
+    5:val => effects[model.scenes[scene].synth].delay.setLevel(val)
+  }[key]
+}
 
-      // Disconnect the oscillator from the master gain node
-      obxd.disconnect();
-      fadeOutNode.disconnect();
-
-      // Connect the oscillator to the reverbNode
-      obxd.connect(reverbNode);
-
-      // Connect the reverbNode to its own gain node
-      const reverbGain = actx.createGain();
-      reverbNode.connect(reverbGain);
-      reverbGain.connect(actx.destination);
-
-      // Connect the fadeOutNode to the master gain node
-      fadeOutNode.connect(actx.destination);
-    } else {
-      // Turn off the reverb effect
-
-      // Disconnect the reverb node and reset connections
-      obxd.disconnect();
-      fadeOutNode.disconnect();
-
-      // Reconnect the oscillator directly to the master gain node
-      obxd.connect(actx.destination);
-
-      // Connect the fadeOutNode to the master gain node
-      fadeOutNode.connect(actx.destination);
-    }
-  }
+const effectChanged = ()=>{
+  let key = parseInt(document.getElementById("effects-key").value);
+  let value = parseFloat(document.getElementById("effects-val").value);
+  model.scenes[scene].effects[key] = value;
+  effectFunc(key)(value)
 }
 
 async function bankChange(x) {
@@ -548,6 +563,11 @@ function loadPatches() {
 }
 
 var wait = t => new Promise(r => setTimeout(r, t));
+const updateEffects = ()=>{
+  for(let i=0;i<model.scenes[scene].effects.length;i++){
+    effectFunc(i)(model.scenes[scene].effects[i])
+  }
+}
 
 async function load() {
   try {
@@ -563,7 +583,8 @@ async function load() {
     loaded = true;
     await bankChange();
     patchChange();
-    putReverb();
+    updateEffects();
+    
     //console.log((a,b)=>obxd.onMidi([0xB0, a, b]))
   } catch (e) {
     throw e//alert(e);
@@ -663,7 +684,8 @@ const loadModelToUi = () => {
   document.getElementById("reset-scene").checked = model.scenes[scene].resetOnSceneChange
   document.getElementById("bpm").value = model.scenes[scene].bpm
   document.getElementById("meter").value = model.scenes[scene].meter
-  document.getElementById("reverb").value = model.scenes[scene].reverb
+  document.getElementById("effects-val").value = model.scenes[scene].effects[parseInt(document.getElementById("effects-key").value)]
+
   synthChanged();
   if (model.scenes.length > 1) document.getElementById("delete-scene").style.display = "block";
 
@@ -695,6 +717,7 @@ function loadSavedItem(name) {
   }
   model = getFromStorage(name);
   scene = 0;
+  if(!model.scenes[scene].effects) model.scenes[scene].effects=[0,0,0,0,0,0]
   loadModelToUi();
 }
 
@@ -780,6 +803,7 @@ const synthChanged = () => {
   model.scenes[scene].synth = document.getElementById("synth").value;
   if (model.scenes[scene].synth === "midi") {
     document.getElementById("internal-synth").style.display = 'none';
+    document.getElementById("instruments").style.display = 'none';
 
     navigator.requestMIDIAccess().then(function (midiAccess) {
       // Get the first available MIDI output
@@ -789,7 +813,7 @@ const synthChanged = () => {
       };
     });
 
-  } else if (model.scenes[scene].synth === "sf") {
+  } else if (model.scenes[scene].synth === "tone") {
     send = (message) => {
       let [state, note, vel] = message;
       if (state = 0x90) {
@@ -802,6 +826,7 @@ const synthChanged = () => {
     document.getElementById("instruments").style.display = 'block';
   } else {
     document.getElementById("internal-synth").style.display = 'block';
+    document.getElementById("instruments").style.display = 'none';
     send = (message) => { obxd.onMidi(message) };
   }
 }
@@ -840,11 +865,6 @@ const paramChange = () => {
   model.scenes[scene].transpose = parseFloat(document.getElementById("transpose").value)
   model.scenes[scene].octave = parseFloat(document.getElementById("octave").value)
   model.scenes[scene].meter = parseFloat(document.getElementById("meter").value)
-}
-
-const reverbChanged = async () => {
-  model.scenes[scene].reverb = parseFloat(document.getElementById("reverb").value);
-  putReverb();
 }
 
 const exportSongs = () => {
@@ -895,7 +915,10 @@ document.getElementById("bpm").addEventListener("input", paramChange)
 document.getElementById("octave").addEventListener("input", paramChange)
 document.getElementById("transpose").addEventListener("input", paramChange)
 document.getElementById("meter").addEventListener("input", paramChange)
-document.getElementById("reverb").addEventListener("input", reverbChanged)
+document.getElementById("effects-val").addEventListener("input", effectChanged)
+document.getElementById("effects-key").addEventListener("change", (e)=>{
+  document.getElementById("effects-val").value = model.scenes[scene].effects[parseInt(e.target.value)]
+})
 document.getElementById("ctrl1").addEventListener("click", () => {
   progressChord(true)
   showChord()
