@@ -50,31 +50,32 @@ body.addEventListener('touchmove', function (e) {
   e.preventDefault();
 });
 // ------------------------------------ debug ------------------------------------
-// window.onerror = (a, b, c, d, e) => {
-//   const message = `
-//   message: ${a}
-//   source: ${b}
-//   lineno: ${c}
-//   colno: ${d}
-//   error: ${e}
-//   --------
-//   `;
-//   document.getElementById("log").innerText += message;
-//   console.log(message);
-//   return true;
-// };
+window.onerror = (a, b, c, d, e) => {
+  const message = `
+  message: ${a}
+  source: ${b}
+  lineno: ${c}
+  colno: ${d}
+  error: ${e}
+  --------
+  `;
+  document.getElementById("log").innerText += message;
+  console.log(message);
+  return true;
+};
 
 // ------------------------------------ functionality ------------------------------------
 // --------- Global variables
 var chordsDict = {};
-var actx, fadeOutNode, obxd, samplePlayer,samples, send = () => { };
+var actx, obxd, samplePlayer,samples;
+var send = {0:() => { }};
 var currentChordNumber = 0;
 var currentBeat = 0;
 var playing = false;
 var loaded = false; //synths should load after user touch
 var currentView = 1;
 var currentForce = 1;
-var scene = 0;
+var scene = 0, playingScene=0;
 var model = {
   name: "new",
   scenes: [
@@ -137,10 +138,10 @@ function parseRhythm() {
 }
 
 function getCurrentChordNotes(i) {
-  var chords = model.scenes[scene].chords;
+  var chords = getScene().chords;
   var chord = chordsDict[chords[i || currentChordNumber]];
-  var transpose = model.scenes[scene].transpose;
-  var octave = model.scenes[scene].octave;
+  var transpose = getScene().transpose;
+  var octave = getScene().octave;
   return chord.notes.map((f) => f + 12 * octave + transpose);
 }
 
@@ -169,7 +170,7 @@ function getSubarrayWithIndex(arr, index, width) {
   };
 }
 function showChord() {
-  var chords = model.scenes[scene].chords;
+  var chords = getScene().chords;
   if (chords.length === 0) {
     return;
   }
@@ -239,8 +240,20 @@ function playCurrentChord() {
   playChord(1, null, true);
 }
 
+const getScene = ()=>{
+  return model.scenes[getSceneNum()]
+}
+
+const getSceneNum = ()=>{
+  if(currentView===1){
+    return scene
+  } else{
+    return playingScene
+  }
+}
+
 function progressChord(back = false) {
-  var len = model.scenes[scene].chords.length;
+  var len = getScene().chords.length;
   if (back) {
     currentChordNumber--;
     if (currentChordNumber < 0) {
@@ -256,7 +269,7 @@ function progressChord(back = false) {
 }
 
 const progressBeat = () => {
-  var len = model.scenes[scene].rhythm.length;
+  var len = getScene().rhythm.length;
 
   currentBeat++;
 
@@ -271,19 +284,19 @@ function playChord(force, chordIndex, overrideProgress) {
     return;
   }
   var notes = getCurrentChordNotes(chordIndex);
-  if (model.scenes[scene].playOnBeat && model.scenes[scene].bpm > 0 && model.scenes[scene].rhythm.length > 0) {
+  if (getScene().playOnBeat && getScene().bpm > 0 && getScene().rhythm.length > 0) {
     currentForce = force;
     playBeat(true, overrideProgress)
   } else {
     notes.forEach((n) => {
-      send([0x90, n, Math.round(force * 127)]);
+      send[getSceneNum()]([0x90, n, Math.round(force * 127)]);
     });
   }
 }
 
 const getBeatTime = () => {
-  const oneBeatTime = 60 / model.scenes[scene].bpm;
-  const { time } = model.scenes[scene].rhythm[currentBeat]
+  const oneBeatTime = 60 / getScene().bpm;
+  const { time } = getScene().rhythm[currentBeat]
   const stopTime = 1000 * oneBeatTime * (4 / time);
   return stopTime;
 }
@@ -296,7 +309,7 @@ function playBeat(start, overrideProgress) {
     stopRequested = false
     if (timeoutHandle) {
       clearTimeout(timeoutHandle);
-      if (model.scenes[scene].progress && !overrideProgress) {
+      if (getScene().progress && !overrideProgress) {
         progressChord();
 
       }
@@ -308,7 +321,7 @@ function playBeat(start, overrideProgress) {
   }
   const cnotes = getCurrentChordNotes();
   if (playing) {
-    const { notes, ttb, gliss } = model.scenes[scene].rhythm[currentBeat];
+    const { notes, ttb, gliss } = getScene().rhythm[currentBeat];
     const notesDict = notes.reduce((a, f) => { a[f - 1] = true; return a }, {});
     let pnotes = cnotes.filter((f, i) => notesDict[i]);
     const stopTime = getBeatTime();
@@ -317,18 +330,18 @@ function playBeat(start, overrideProgress) {
     }
     setTimeout(() => {
       pnotes.forEach((n) => {
-        send([0x80, n, 0]);
+        send[getSceneNum()]([0x80, n, 0]);
       });
       playBeat()
     }, stopTime);
     if (!stopRequested) {
       if (gliss) {
         pnotes.forEach((n, i) => {
-          setTimeout(() => send([0x90, n, Math.round(currentForce * 127)]), i * 1000 / 15);//TODO can rolled chord (mistakenly named gliss) timing can be changed
+          setTimeout(() => send[getSceneNum()]([0x90, n, Math.round(currentForce * 127)]), i * 1000 / 15);//TODO can rolled chord (mistakenly named gliss) timing can be changed
         })
       } else {
         pnotes.forEach((n, i) => {
-          send([0x90, n, Math.round(currentForce * 127)]);
+          send[getSceneNum()]([0x90, n, Math.round(currentForce * 127)]);
         })
       }
     }
@@ -349,7 +362,7 @@ function stopChord(i, progress = true) {
     currentBeat = 0
     var notes = getCurrentChordNotes(i);
     notes.forEach((n) => {
-      send([0x80, n, 0]);
+      send[getSceneNum()]([0x80, n, 0]);
     });
     if (progress) {
       progressChord();
@@ -368,7 +381,7 @@ function changeForce(force) {
   } else {
     var notes = getCurrentChordNotes();
     notes.forEach((n) => {
-      send([0xa0, n, Math.round(force * 127)]);
+      send[getSceneNum()]([0xa0, n, Math.round(force * 127)]);
     });
   }
 }
@@ -377,7 +390,7 @@ function changeForce(force) {
 const sampleChanged = (val)=>{
   samplePlayer = samples[val];
   samplePlayer.connect(effects.tone.overdrive.getInput());
-  model.scenes[scene].sample = val;
+  getScene().sample = val;
 }
 var effects = {obxd:{overdrive:null, delay:null, reverb:null, volume:null, cabinet:null},tone:{overdrive:null, delay:null, reverb:null, volume:null, cabinet:null}}
 function loadSamples() {
@@ -422,7 +435,7 @@ function loadSamples() {
         effects.tone.delay.setLevel(0);
         effects.tone.volume.setLevel(1);
 
-        samplePlayer = samples[model.scenes[scene].sample||'piano'];
+        samplePlayer = samples[getScene().sample||'piano'];
         samplePlayer.connect(effects.tone.overdrive.getInput());
         effects.tone.cabinet.getOutput().connect(context.destination);
       })
@@ -508,45 +521,46 @@ async function loadSynth() {
 
 const effectFunc = (key)=>{
   return {
-    0:val => effects[model.scenes[scene].synth].overdrive.setDrive(val),
-    1:val => effects[model.scenes[scene].synth].overdrive.setTone(val),
-    2:val => effects[model.scenes[scene].synth].reverb.setLevel(val),
-    3:val => effects[model.scenes[scene].synth].delay.setDelayTimer(val*0.6),
-    4:val => effects[model.scenes[scene].synth].delay.setFeedbackGain(val),
-    5:val => effects[model.scenes[scene].synth].delay.setLevel(val)
+    0:val => effects[getScene().synth].overdrive.setDrive(val),
+    1:val => effects[getScene().synth].overdrive.setTone(val),
+    2:val => effects[getScene().synth].reverb.setLevel(val),
+    3:val => effects[getScene().synth].delay.setDelayTimer(val*0.6),
+    4:val => effects[getScene().synth].delay.setFeedbackGain(val),
+    5:val => effects[getScene().synth].delay.setLevel(val)
   }[key]
 }
 
 const effectChanged = ()=>{
   let key = parseInt(document.getElementById("effects-key").value);
   let value = parseFloat(document.getElementById("effects-val").value);
-  model.scenes[scene].effects[key] = value;
+  getScene().effects[key] = value;
   effectFunc(key)(value)
 }
 
 async function bankChange(x) {
   if (!obxd) return;
-  if (!x && !model.scenes[scene].bank) {
+  if (!x && !getScene().bank) {
     await obxd.loadBank("presets/Designer/Kujashi-OBXD-Bank.fxb");
   } else if (x) {
     await obxd.loadBank("presets/" + x);
-    model.scenes[scene].bank = x;
-  } else if (model.scenes[scene].bank) {
-    await obxd.loadBank("presets/" + model.scenes[scene].bank);
+    getScene().bank = x;
+  } else if (getScene().bank) {
+    await obxd.loadBank("presets/" + getScene().bank);
   }
 
   loadPatches();
 }
 function patchChange(x) {
-  model.scenes[scene].patch = x;
+  
   if (!obxd) return;
-  if (!x && !model.scenes[scene].patch) {
+  if (!x && !getScene().patch) {
     obxd.selectPatch(31);
   } else if (x) {
+    getScene().patch = x;
     obxd.selectPatch(x);
-    model.scenes[scene].patch = x;
-  } else if (model.scenes[scene].patch) {
-    obxd.selectPatch(model.scenes[scene].patch);
+    getScene().patch = x;
+  } else if (getScene().patch) {
+    obxd.selectPatch(getScene().patch);
   }
 }
 function loadPatches() {
@@ -564,24 +578,24 @@ function loadPatches() {
 
 var wait = t => new Promise(r => setTimeout(r, t));
 const updateEffects = ()=>{
-  for(let i=0;i<model.scenes[scene].effects.length;i++){
-    effectFunc(i)(model.scenes[scene].effects[i])
+  for(let i=0;i<getScene().effects.length;i++){
+    effectFunc(i)(getScene().effects[i])
   }
 }
 
 async function load() {
   try {
-
+    await loadSynth();
+    await bankChange();
+    await loadSamples();
     loadSavedItem();
     reloadList();
     changeScene(null, 0);
     registerPressure();
-    await loadSynth();
-    await loadSamples();
+    
     var el = document.getElementById("load");
     el.style.setProperty("display", "none", "important");
     loaded = true;
-    await bankChange();
     patchChange();
     updateEffects();
     
@@ -598,18 +612,18 @@ async function load() {
 // }
 
 function nextPatch() {
-  var x = model.scenes[scene].patch;
+  var x = getScene().patch;
   x++;
   obxd.selectPatch(x);
   document.getElementById("patches").value = x;//TODO max
-  model.scenes[scene].patch = x;
+  getScene().patch = x;
 }
 
 function prevPatch() {
-  var x = Math.max(model.scenes[scene].patch - 1, 0);
+  var x = Math.max(getScene().patch - 1, 0);
   obxd.selectPatch(x);
   document.getElementById("patches").value = x;
-  model.scenes[scene].patch = x;
+  getScene().patch = x;
 }
 //document.getElementById("param").addEventListener("change", controlChange, false);
 //document.getElementById("paramVal").addEventListener("change", controlChange, false);
@@ -667,24 +681,24 @@ const loadModelToUi = () => {
 
   document.getElementById("name").value = model.name;
 
-  document.getElementById("chords-input").value = model.scenes[scene].chords.join(" ");
-  document.getElementById("rhythm-input").value = model.scenes[scene].rhythm
+  document.getElementById("chords-input").value = getScene().chords.join(" ");
+  document.getElementById("rhythm-input").value = getScene().rhythm
     .map(f => `${f.time}-${f.notes.join("")}${f.gliss ? "!" : ""}${f.ttb ? "v" : ""}`).join(" ");
-  document.getElementById("transpose").value = model.scenes[scene].transpose;
-  document.getElementById("octave").value = model.scenes[scene].octave;
-  document.getElementById("synth").value = model.scenes[scene].synth;
-  document.getElementById("progress-check").checked = model.scenes[scene].progress;
+  document.getElementById("transpose").value = getScene().transpose;
+  document.getElementById("octave").value = getScene().octave;
+  document.getElementById("synth").value = getScene().synth;
+  document.getElementById("progress-check").checked = getScene().progress;
   showChord();
-  document.getElementById("banks").value = model.scenes[scene].bank;
-  bankChange(model.scenes[scene].bank).then(() => {
-    document.getElementById("patches").value = model.scenes[scene].patch;
-    patchChange(model.scenes[scene].patch);
+  document.getElementById("banks").value = getScene().bank;
+  bankChange(getScene().bank).then(() => {
+    document.getElementById("patches").value = getScene().patch;
+    patchChange(getScene().patch);
   });
-  document.getElementById("play-on-beat").checked = model.scenes[scene].playOnBeat
-  document.getElementById("reset-scene").checked = model.scenes[scene].resetOnSceneChange
-  document.getElementById("bpm").value = model.scenes[scene].bpm
-  document.getElementById("meter").value = model.scenes[scene].meter
-  document.getElementById("effects-val").value = model.scenes[scene].effects[parseInt(document.getElementById("effects-key").value)]
+  document.getElementById("play-on-beat").checked = getScene().playOnBeat
+  document.getElementById("reset-scene").checked = getScene().resetOnSceneChange
+  document.getElementById("bpm").value = getScene().bpm
+  document.getElementById("meter").value = getScene().meter
+  document.getElementById("effects-val").value = getScene().effects[parseInt(document.getElementById("effects-key").value)]
 
   synthChanged();
   if (model.scenes.length > 1) document.getElementById("delete-scene").style.display = "block";
@@ -717,7 +731,7 @@ function loadSavedItem(name) {
   }
   model = getFromStorage(name);
   scene = 0;
-  if(!model.scenes[scene].effects) model.scenes[scene].effects=[0,0,0,0,0,0]
+  if(!getScene().effects) getScene().effects=[0,0,0,0,0,0]
   loadModelToUi();
 }
 
@@ -796,12 +810,12 @@ const connectMidi = (midiAccess) => {
     return;
   }
 
-  send = (message) => { output.send(message) };
+  send[getSceneNum()] = (message) => { output.send(message) };
 }
 
 const synthChanged = () => {
-  model.scenes[scene].synth = document.getElementById("synth").value;
-  if (model.scenes[scene].synth === "midi") {
+  getScene().synth = document.getElementById("synth").value;
+  if (getScene().synth === "midi") {
     document.getElementById("internal-synth").style.display = 'none';
     document.getElementById("instruments").style.display = 'none';
 
@@ -813,12 +827,13 @@ const synthChanged = () => {
       };
     });
 
-  } else if (model.scenes[scene].synth === "tone") {
-    send = (message) => {
-      let [state, note, vel] = message;
-      if (state = 0x90) {
+  } else if (getScene().synth === "tone") {
+    send[getSceneNum()] = (message) => {
+      let state = message[0];
+      let note = message[1];
+      if (state === 0x90) {
         samplePlayer.triggerAttack(Tone.Frequency(note, "midi").toNote());
-      } else if (state = 0x80) {
+      } else if (state === 0x80) {
         samplePlayer.triggerRelease(Tone.Frequency(note, "midi").toNote());
       }
     }
@@ -827,7 +842,7 @@ const synthChanged = () => {
   } else {
     document.getElementById("internal-synth").style.display = 'block';
     document.getElementById("instruments").style.display = 'none';
-    send = (message) => { obxd.onMidi(message) };
+    send[getSceneNum()] = (message) => { obxd.onMidi(message) };
   }
 }
 
@@ -836,15 +851,15 @@ const nameChange = () => {
 }
 
 const chordsInpChange = () => {
-  model.scenes[scene].chords = parseChords();
+  getScene().chords = parseChords();
 }
 
 const rhythmInpChange = () => {
-  model.scenes[scene].rhythm = parseRhythm();
+  getScene().rhythm = parseRhythm();
 }
 
 const createScene = () => {
-  var c = JSON.parse(JSON.stringify(model.scenes[scene]));
+  var c = JSON.parse(JSON.stringify(getScene()));
   model.scenes.splice(scene + 1, 0, c);
   changeScene()
 
@@ -861,10 +876,10 @@ const deleteScene = () => {
 }
 
 const paramChange = () => {
-  model.scenes[scene].bpm = parseFloat(document.getElementById("bpm").value)
-  model.scenes[scene].transpose = parseFloat(document.getElementById("transpose").value)
-  model.scenes[scene].octave = parseFloat(document.getElementById("octave").value)
-  model.scenes[scene].meter = parseFloat(document.getElementById("meter").value)
+  getScene().bpm = parseFloat(document.getElementById("bpm").value)
+  getScene().transpose = parseFloat(document.getElementById("transpose").value)
+  getScene().octave = parseFloat(document.getElementById("octave").value)
+  getScene().meter = parseFloat(document.getElementById("meter").value)
 }
 
 const exportSongs = () => {
@@ -898,9 +913,9 @@ fileInput.addEventListener('change', (event) => {
 
 document.getElementById("export").addEventListener("click", exportSongs);
 document.getElementById("synth").addEventListener("change", synthChanged);
-document.getElementById("reset-scene").addEventListener("change", (e) => { model.scenes[scene].resetOnSceneChange = e.target.checked });
-document.getElementById("play-on-beat").addEventListener("change", (e) => { model.scenes[scene].playOnBeat = e.target.checked });
-document.getElementById("progress-check").addEventListener("change", (e) => { model.scenes[scene].progress = e.target.checked });
+document.getElementById("reset-scene").addEventListener("change", (e) => { getScene().resetOnSceneChange = e.target.checked });
+document.getElementById("play-on-beat").addEventListener("change", (e) => { getScene().playOnBeat = e.target.checked });
+document.getElementById("progress-check").addEventListener("change", (e) => { getScene().progress = e.target.checked });
 document.getElementById("reset").addEventListener("click", reset);
 document.getElementById("name-button").addEventListener("click", save);
 document.getElementById("name").addEventListener("change", nameChange);
@@ -917,7 +932,7 @@ document.getElementById("transpose").addEventListener("input", paramChange)
 document.getElementById("meter").addEventListener("input", paramChange)
 document.getElementById("effects-val").addEventListener("input", effectChanged)
 document.getElementById("effects-key").addEventListener("change", (e)=>{
-  document.getElementById("effects-val").value = model.scenes[scene].effects[parseInt(e.target.value)]
+  document.getElementById("effects-val").value = getScene().effects[parseInt(e.target.value)]
 })
 document.getElementById("ctrl1").addEventListener("click", () => {
   progressChord(true)
@@ -945,7 +960,7 @@ const registerPressure = () => {
     Pressure.set("#play-" + i, {
       start: function (event) {
         if (model.scenes[i].resetOnSceneChange && prevPlayingScene !== i) {
-          changeScene(null, i)
+          playingScene = i;
           reset()
           prevPlayingScene = i;
         }
@@ -957,7 +972,7 @@ const registerPressure = () => {
         playChord(event.pressure);
       },
       end: function () {
-        stopChord(undefined, model.scenes[scene].progress);
+        stopChord(undefined, getScene().progress);
         document.getElementById("play-" + i).style.backgroundColor = "rgba(0, 0, 0, 0)";
       },
       change: function (force, event) {
@@ -1054,7 +1069,7 @@ const changeScene = (up = false, sceneNumber) => {
     } else {
       if (scene < model.scenes.length - 1) scene++;
     };
-    if (model.scenes[scene].resetOnScene) {
+    if (getScene().resetOnScene) {
       currentChordNumber = 0;
     }
   }
